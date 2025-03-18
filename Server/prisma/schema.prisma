@@ -1,0 +1,492 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum RoleName {
+  ADMIN
+  MANAGER
+  INVENTORY_SPECIALIST
+  SALES_REPRESENTATIVE
+  PURCHASING_AGENT
+  PRODUCTION_MANAGER
+  STAFF
+  CUSTOMER
+}
+
+enum PermissionType {
+  CREATE
+  READ
+  WRITE
+  UPDATE
+  DELETE
+}
+
+enum LocationType {
+  WAREHOUSE
+  STORE
+  OFFICE
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELED
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  SUBMITTED
+  RECEIVED
+  CANCELED
+}
+
+enum InventoryTransactionType {
+  IN
+  OUT
+  TRANSFER
+  ADJUSTMENT
+}
+
+enum AlertType {
+  LOW_STOCK
+  EXPIRING
+  OVERSTOCK
+}
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+  IN_APP
+}
+
+enum ReportType {
+  SALES
+  INVENTORY
+  FINANCIAL
+  PRODUCTION
+}
+
+enum IntegrationDirection {
+  INCOMING
+  OUTGOING
+}
+
+enum IntegrationStatus {
+  SUCCESS
+  FAILURE
+}
+
+model Permission {
+  id          Int              @id @default(autoincrement())
+  name        String           @unique
+  description String?          @db.Text
+  roles       RolePermission[]
+}
+
+model RolePermission {
+  roleId       Int
+  permissionId Int
+  role         Role       @relation(fields: [roleId], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id])
+
+  @@id([roleId, permissionId])
+}
+
+model Role {
+  id          Int              @id @default(autoincrement())
+  name        RoleName         @unique
+  description String?          @db.Text
+  permissions RolePermission[]
+  users       User[]
+}
+
+model User {
+  id                    Int                    @id @default(autoincrement())
+  email                 String                 @unique
+  passwordHash          String                 @map("password_hash")
+  firstName             String                 @map("first_name")
+  lastName              String                 @map("last_name")
+  roleId                Int                    @map("role_id")
+  deletedAt             DateTime?              @map("deleted_at")
+  lastLoginAt           DateTime?              @map("last_login_at")
+  createdAt             DateTime               @default(now()) @map("created_at")
+  updatedAt             DateTime               @default(now()) @updatedAt @map("updated_at")
+  role                  Role                   @relation(fields: [roleId], references: [id])
+  orders                Order[]
+  purchaseOrders        PurchaseOrder[]
+  inventoryTransactions InventoryTransaction[]
+  reports               Report[]
+  apiKeys               ApiKey[]
+  productionOrders      ProductionOrder[]
+  notifications         Notification[]
+  alertRecipients       AlertRecipientUser[]
+}
+
+model Category {
+  id            Int            @id @default(autoincrement())
+  name          String         @unique
+  description   String?        @db.Text
+  parentId      Int?           @map("parent_id")
+  level         Int            @default(0)
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @default(now()) @updatedAt @map("updated_at")
+  parent        Category?      @relation("CategoryToSubcategory", fields: [parentId], references: [id], onDelete: SetNull)
+  subcategories Category[]     @relation("CategoryToSubcategory")
+  products      Product[]
+  alertSettings AlertSetting[]
+}
+
+model Supplier {
+  id             Int             @id @default(autoincrement())
+  name           String
+  contactName    String?         @map("contact_name")
+  email          String?
+  phone          String?
+  address        String?         @db.Text
+  notes          String?         @db.Text
+  deletedAt      DateTime?       @map("deleted_at")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @default(now()) @updatedAt @map("updated_at")
+  purchaseOrders PurchaseOrder[]
+}
+
+model Product {
+  id                    Int                    @id @default(autoincrement())
+  sku                   String                 @unique
+  name                  String
+  description           String?                @db.Text
+  categoryId            Int                    @map("category_id")
+  price                 Int // Ugandan currency (whole number)
+  cost                  Int // Ugandan currency (whole number)
+  barcode               String?
+  weight                Decimal?               @db.Decimal(10, 2)
+  length                Decimal?               @db.Decimal(10, 2)
+  width                 Decimal?               @db.Decimal(10, 2)
+  height                Decimal?               @db.Decimal(10, 2)
+  reorderPoint          Int                    @default(10) @map("reorder_point")
+  reorderQuantity       Int                    @default(20) @map("reorder_quantity")
+  deletedAt             DateTime?              @map("deleted_at")
+  createdAt             DateTime               @default(now()) @map("created_at")
+  updatedAt             DateTime               @default(now()) @updatedAt @map("updated_at")
+  category              Category               @relation(fields: [categoryId], references: [id])
+  inventoryItems        Inventory[]
+  orderItems            OrderItem[]
+  purchaseOrderItems    PurchaseOrderItem[]
+  inventoryTransactions InventoryTransaction[]
+  alertSettings         AlertSetting[]
+  asComponent           ProductComponent[]     @relation("ComponentProduct")
+  hasComponents         ProductComponent[]     @relation("ParentProduct")
+  productionOrders      ProductionOrder[]
+}
+
+model Location {
+  id               Int                    @id @default(autoincrement())
+  name             String
+  type             LocationType
+  address          String?                @db.Text
+  contactInfo      String?                @map("contact_info") @db.Text
+  capacity         Int?
+  deletedAt        DateTime?              @map("deleted_at")
+  createdAt        DateTime               @default(now()) @map("created_at")
+  updatedAt        DateTime               @default(now()) @updatedAt @map("updated_at")
+  inventoryItems   Inventory[]
+  fromTransactions InventoryTransaction[] @relation("FromLocation")
+  toTransactions   InventoryTransaction[] @relation("ToLocation")
+  alertSettings    AlertSetting[]
+}
+
+model Inventory {
+  id               Int      @id @default(autoincrement())
+  productId        Int      @map("product_id")
+  locationId       Int      @map("location_id")
+  quantity         Int      @default(0)
+  reservedQuantity Int      @default(0) @map("reserved_quantity")
+  batchNumber      String?
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at")
+  product          Product  @relation(fields: [productId], references: [id])
+  location         Location @relation(fields: [locationId], references: [id])
+
+  @@unique([productId, locationId], name: "unique_product_location")
+}
+
+model Customer {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String?
+  phone     String?
+  address   String?  @db.Text
+  notes     String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  orders    Order[]
+}
+
+model Order {
+  id              Int         @id @default(autoincrement())
+  orderNumber     String      @unique @map("order_number")
+  customerId      Int         @map("customer_id")
+  userId          Int         @map("user_id")
+  orderDate       DateTime    @default(now()) @map("order_date")
+  status          OrderStatus @default(PENDING)
+  shippingAddress String?     @map("shipping_address") @db.Text
+  shippingMethod  String?     @map("shipping_method")
+  paymentMethod   String?     @map("payment_method")
+  subtotal        Int // Ugandan currency (whole number)
+  tax             Int // Ugandan currency (whole number)
+  shippingCost    Int // Ugandan currency (whole number)
+  total           Int // Ugandan currency (whole number)
+  currency        String      @default("UGX") // Ugandan Shillings
+  notes           String?     @db.Text
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @default(now()) @updatedAt @map("updated_at")
+  customer        Customer    @relation(fields: [customerId], references: [id])
+  user            User        @relation(fields: [userId], references: [id])
+  orderItems      OrderItem[]
+}
+
+model OrderItem {
+  id        Int      @id @default(autoincrement())
+  orderId   Int      @map("order_id")
+  productId Int      @map("product_id")
+  quantity  Int
+  unitPrice Int // Ugandan currency (whole number)
+  unitCost  Int // Ugandan currency (whole number)
+  subtotal  Int // Ugandan currency (whole number)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id])
+}
+
+model PurchaseOrder {
+  id                   Int                 @id @default(autoincrement())
+  poNumber             String              @unique @map("po_number")
+  supplierId           Int                 @map("supplier_id")
+  userId               Int                 @map("user_id")
+  orderDate            DateTime            @default(now()) @map("order_date")
+  expectedDeliveryDate DateTime?           @map("expected_delivery_date")
+  status               PurchaseOrderStatus @default(DRAFT)
+  notes                String?             @db.Text
+  total                Int // Ugandan currency (whole number)
+  createdAt            DateTime            @default(now()) @map("created_at")
+  updatedAt            DateTime            @default(now()) @updatedAt @map("updated_at")
+  supplier             Supplier            @relation(fields: [supplierId], references: [id])
+  user                 User                @relation(fields: [userId], references: [id])
+  purchaseOrderItems   PurchaseOrderItem[]
+}
+
+model PurchaseOrderItem {
+  id               Int           @id @default(autoincrement())
+  purchaseOrderId  Int           @map("purchase_order_id")
+  productId        Int           @map("product_id")
+  quantityOrdered  Int           @map("quantity_ordered")
+  quantityReceived Int           @default(0) @map("quantity_received")
+  unitCost         Int // Ugandan currency (whole number)
+  subtotal         Int // Ugandan currency (whole number)
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @default(now()) @updatedAt @map("updated_at")
+  purchaseOrder    PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  product          Product       @relation(fields: [productId], references: [id])
+}
+
+model InventoryTransaction {
+  id              Int                      @id @default(autoincrement())
+  transactionType InventoryTransactionType
+  productId       Int                      @map("product_id")
+  quantity        Int
+  fromLocationId  Int?                     @map("from_location_id")
+  toLocationId    Int?                     @map("to_location_id")
+  referenceId     String?                  @map("reference_id")
+  referenceType   String?                  @map("reference_type")
+  transactionDate DateTime                 @default(now()) @map("transaction_date")
+  userId          Int                      @map("user_id")
+  notes           String?                  @db.Text
+  createdAt       DateTime                 @default(now()) @map("created_at")
+  product         Product                  @relation(fields: [productId], references: [id])
+  fromLocation    Location?                @relation("FromLocation", fields: [fromLocationId], references: [id], onDelete: SetNull)
+  toLocation      Location?                @relation("ToLocation", fields: [toLocationId], references: [id], onDelete: SetNull)
+  user            User                     @relation(fields: [userId], references: [id])
+}
+
+model AlertSetting {
+  id                   Int                        @id @default(autoincrement())
+  productId            Int?                       @map("product_id")
+  categoryId           Int?                       @map("category_id")
+  locationId           Int?                       @map("location_id")
+  alertType            AlertType
+  threshold            Int?
+  isActive             Boolean                    @default(true) @map("is_active")
+  createdAt            DateTime                   @default(now()) @map("created_at")
+  updatedAt            DateTime                   @default(now()) @updatedAt @map("updated_at")
+  product              Product?                   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  category             Category?                  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  location             Location?                  @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  notificationChannels AlertNotificationChannel[]
+  recipientUsers       AlertRecipientUser[]
+  notifications        Notification[]
+}
+
+model AlertNotificationChannel {
+  id             Int                 @id @default(autoincrement())
+  alertSettingId Int                 @map("alert_setting_id")
+  channel        NotificationChannel
+  alertSetting   AlertSetting        @relation(fields: [alertSettingId], references: [id], onDelete: Cascade)
+
+  @@unique([alertSettingId, channel], name: "unique_alert_channel")
+}
+
+model AlertRecipientUser {
+  id             Int          @id @default(autoincrement())
+  alertSettingId Int          @map("alert_setting_id")
+  userId         Int          @map("user_id")
+  alertSetting   AlertSetting @relation(fields: [alertSettingId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([alertSettingId, userId], name: "unique_alert_user")
+}
+
+model Notification {
+  id              Int           @id @default(autoincrement())
+  type            String
+  title           String
+  content         String        @db.Text
+  recipientUserId Int           @map("recipient_user_id")
+  isRead          Boolean       @default(false) @map("is_read")
+  readAt          DateTime?     @map("read_at")
+  alertId         Int?          @map("alert_id")
+  referenceId     String?       @map("reference_id")
+  referenceType   String?       @map("reference_type")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  user            User          @relation(fields: [recipientUserId], references: [id], onDelete: Cascade)
+  alertSetting    AlertSetting? @relation(fields: [alertId], references: [id], onDelete: SetNull)
+}
+
+model Report {
+  id                Int               @id @default(autoincrement())
+  name              String
+  description       String?           @db.Text
+  reportType        ReportType
+  createdBy         Int               @map("created_by")
+  isScheduled       Boolean           @default(false) @map("is_scheduled")
+  scheduleFrequency String?           @map("schedule_frequency")
+  lastRunAt         DateTime?         @map("last_run_at")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @default(now()) @updatedAt @map("updated_at")
+  user              User              @relation(fields: [createdBy], references: [id])
+  parameters        ReportParameter[]
+  reportData        ReportData[]
+}
+
+model ReportParameter {
+  id       Int    @id @default(autoincrement())
+  reportId Int    @map("report_id")
+  key      String
+  value    String
+  report   Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, key], name: "unique_report_parameter")
+}
+
+model ReportData {
+  id        Int      @id @default(autoincrement())
+  reportId  Int      @map("report_id")
+  data      Json
+  createdAt DateTime @default(now()) @map("created_at")
+  report    Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+}
+
+model ApiKey {
+  id              Int                @id @default(autoincrement())
+  name            String
+  keyHash         String             @map("key_hash")
+  createdBy       Int                @map("created_by")
+  expiresAt       DateTime?          @map("expires_at")
+  lastUsedAt      DateTime?          @map("last_used_at")
+  usageCount      Int                @default(0)
+  isActive        Boolean            @default(true) @map("is_active")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @default(now()) @updatedAt @map("updated_at")
+  user            User               @relation(fields: [createdBy], references: [id])
+  permissions     ApiKeyPermission[]
+  integrationLogs IntegrationLog[]
+}
+
+model ApiKeyPermission {
+  id             Int            @id @default(autoincrement())
+  apiKeyId       Int            @map("api_key_id")
+  resource       String
+  permissionType PermissionType
+  apiKey         ApiKey         @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+
+  @@unique([apiKeyId, resource, permissionType], name: "unique_api_key_permission")
+}
+
+model IntegrationLog {
+  id              Int                  @id @default(autoincrement())
+  integrationType String
+  direction       IntegrationDirection
+  status          IntegrationStatus
+  requestPayload  String?              @map("request_payload") @db.Text
+  responsePayload String?              @map("response_payload") @db.Text
+  errorMessage    String?              @map("error_message") @db.Text
+  apiKeyId        Int?                 @map("api_key_id")
+  createdAt       DateTime             @default(now()) @map("created_at")
+  apiKey          ApiKey?              @relation(fields: [apiKeyId], references: [id], onDelete: SetNull)
+}
+
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  userId     Int?     @map("user_id")
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String   @map("entity_id")
+  oldValues  Json?    @map("old_values")
+  newValues  Json?    @map("new_values")
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent") @db.Text
+  createdAt  DateTime @default(now()) @map("created_at")
+}
+
+model ProductComponent {
+  id          Int      @id @default(autoincrement())
+  productId   Int      @map("product_id")
+  componentId Int      @map("component_id")
+  quantity    Decimal  @db.Decimal(10, 3)
+  unit        String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
+  product     Product  @relation("ParentProduct", fields: [productId], references: [id], onDelete: Cascade)
+  component   Product  @relation("ComponentProduct", fields: [componentId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, componentId], name: "unique_product_component")
+}
+
+model ProductionOrder {
+  id          Int       @id @default(autoincrement())
+  orderNumber String    @unique @map("order_number")
+  productId   Int       @map("product_id")
+  quantity    Int
+  status      String    @default("planned")
+  startDate   DateTime? @map("start_date")
+  endDate     DateTime? @map("end_date")
+  createdBy   Int       @map("created_by")
+  notes       String?   @db.Text
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at")
+  product     Product   @relation(fields: [productId], references: [id])
+  user        User      @relation(fields: [createdBy], references: [id])
+}

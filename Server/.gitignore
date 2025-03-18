@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Compiled output
+dist/
+
+# Environment variables (ignore the real .env file)
+.env
+
+# Logs
+*.log
+
+# Local database files
+*.db
+*.sqlite
+
+# Linter cache
+.eslintcache
+
+# Test coverage
+coverage/
+
+# TypeScript build info
+.tsbuildinfo
+
+# IDE settings
+.vscode/
+.idea/
+
+# Miscellaneous
+.DS_Store
+npm-debug.log
+yarn-error.log
