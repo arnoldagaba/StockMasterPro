@@ -129,6 +129,8 @@ model User {
   createdAt             DateTime               @default(now()) @map("created_at")
   updatedAt             DateTime               @default(now()) @updatedAt @map("updated_at")
   role                  Role                   @relation(fields: [roleId], references: [id])
+  refreshToken          String?                @map("refresh_token")
+  refreshTokenExpiry    DateTime?              @map("refresh_token_expiry")
   orders                Order[]
   purchaseOrders        PurchaseOrder[]
   inventoryTransactions InventoryTransaction[]
@@ -137,6 +139,18 @@ model User {
   productionOrders      ProductionOrder[]
   notifications         Notification[]
   alertRecipients       AlertRecipientUser[]
+  UserSession           UserSession[]
+}
+
+model UserSession {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  token     String   @unique
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent") @db.Text
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Category {
@@ -175,6 +189,7 @@ model Product {
   categoryId            Int                    @map("category_id")
   price                 Int // Ugandan currency (whole number)
   cost                  Int // Ugandan currency (whole number)
+  taxRate               Decimal?               @map("tax_rate") @db.Decimal(5, 2)
   barcode               String?
   weight                Decimal?               @db.Decimal(10, 2)
   length                Decimal?               @db.Decimal(10, 2)
@@ -186,6 +201,7 @@ model Product {
   createdAt             DateTime               @default(now()) @map("created_at")
   updatedAt             DateTime               @default(now()) @updatedAt @map("updated_at")
   category              Category               @relation(fields: [categoryId], references: [id])
+  image                 ProductImage[]
   inventoryItems        Inventory[]
   orderItems            OrderItem[]
   purchaseOrderItems    PurchaseOrderItem[]
@@ -194,6 +210,16 @@ model Product {
   asComponent           ProductComponent[]     @relation("ComponentProduct")
   hasComponents         ProductComponent[]     @relation("ParentProduct")
   productionOrders      ProductionOrder[]
+}
+
+model ProductImage {
+  id        Int      @id @default(autoincrement())
+  productId Int      @map("product_id")
+  url       String
+  isDefault Boolean  @default(false) @map("is_default")
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 }
 
 model Location {
