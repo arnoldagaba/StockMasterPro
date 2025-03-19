@@ -7,6 +7,9 @@ dist/
 # Environment variables (ignore the real .env file)
 .env
 
+# Prisma migrations
+prisma/migrations/
+
 # Logs
 *.log
 
