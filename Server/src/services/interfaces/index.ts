@@ -37,7 +37,7 @@ import {
     ProductImage,
     RoleName,
     Permission,
-    Report, // Added missing Report type
+    Report,
     Location,
     Notification,
 } from "@prisma/client";
