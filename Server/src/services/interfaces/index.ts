@@ -37,6 +37,9 @@ import {
     ProductImage,
     RoleName,
     Permission,
+    Report, // Added missing Report type
+    Location,
+    Notification,
 } from "@prisma/client";
 
 export interface CreateUserDTO {
