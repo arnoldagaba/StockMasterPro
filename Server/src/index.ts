@@ -5,11 +5,13 @@ import helmet from "helmet";
 const app: Express = express();
 const PORT = process.env.PORT ?? 5000;
 
-//
-app.use(helmet());
-app.use(cors());
+// Middleware
+app.use(helmet()); // Set security headers
+app.use(cors({ origin: "http://localhost:5173", credentials: true }));
+app.use(express.json({ limit: "10mb" })); // Parse JSON request body
+app.use(express.urlencoded({ extended: true, limit: "10mb" })); // Parse URL-encoded request body
 
-// API Endpoints
+// API Routes
 app.get("/", (req: Request, res: Response) => {
     res.status(200).json({
         message: "IMS API is running",
