@@ -7,7 +7,7 @@
   "type": "module",
   "main": "index.ts",
   "prisma": {
-    "seed": "tsx src/db/seed.ts"
+    "seed": "tsx src/scripts/seed.ts"
   },
   "scripts": {
     "build": "tsc",
@@ -35,7 +35,9 @@
     "nodemailer": "^6.10.0",
     "prettier": "^3.5.3",
     "socket.io": "^4.8.1",
+    "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
+    "tsoa": "^6.6.0",
     "winston": "^3.17.0",
     "zod": "^3.24.2"
   },
@@ -51,6 +53,7 @@
     "@types/node": "^22.13.10",
     "@types/nodemailer": "^6.4.17",
     "@types/socket.io": "^3.0.1",
+    "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.8",
     "eslint": "^9.22.0",
     "prisma": "^6.5.0",
