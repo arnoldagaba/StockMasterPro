@@ -1,9 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -87,6 +84,13 @@ enum IntegrationDirection {
 enum IntegrationStatus {
   SUCCESS
   FAILURE
+}
+
+enum ProductionOrderStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELED
 }
 
 model Permission {
@@ -476,17 +480,17 @@ model ProductComponent {
 }
 
 model ProductionOrder {
-  id          Int       @id @default(autoincrement())
-  orderNumber String    @unique @map("order_number")
-  productId   Int       @map("product_id")
+  id          Int                   @id @default(autoincrement())
+  orderNumber String                @unique @map("order_number")
+  productId   Int                   @map("product_id")
   quantity    Int
-  status      String    @default("planned")
-  startDate   DateTime? @map("start_date")
-  endDate     DateTime? @map("end_date")
-  createdBy   Int       @map("created_by")
-  notes       String?   @db.Text
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at")
-  product     Product   @relation(fields: [productId], references: [id])
-  user        User      @relation(fields: [createdBy], references: [id])
+  status      ProductionOrderStatus @default(PLANNED)
+  startDate   DateTime?             @map("start_date")
+  endDate     DateTime?             @map("end_date")
+  createdBy   Int                   @map("created_by")
+  notes       String?               @db.Text
+  createdAt   DateTime              @default(now()) @map("created_at")
+  updatedAt   DateTime              @default(now()) @updatedAt @map("updated_at")
+  product     Product               @relation(fields: [productId], references: [id])
+  user        User                  @relation(fields: [createdBy], references: [id])
 }
