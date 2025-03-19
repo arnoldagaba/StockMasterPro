@@ -1,4 +1,4 @@
-import { PrismaClient, User, Role, UserSession } from "@prisma/client";
+import { User, Role, UserSession } from "@prisma/client";
 import { CreateUserDTO, UpdateUserDTO, UserLoginDTO, UserLoginResponse, IUserService } from "./interfaces";
 import { BaseService } from "./base.service";
 import * as bcrypt from "bcrypt";
@@ -6,10 +6,6 @@ import * as jwt from "jsonwebtoken";
 import { v4 as uuidv4 } from "uuid";
 
 export class UserService extends BaseService implements IUserService {
-    constructor(prismaClient: PrismaClient) {
-        super(prismaClient);
-    }
-
     /**
      * Creates a new user with hashed password.
      *
