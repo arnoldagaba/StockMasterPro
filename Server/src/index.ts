@@ -3,6 +3,7 @@ import cors from "cors";
 import helmet from "helmet";
 import swaggerUi from "swagger-ui-express";
 import swaggerSpec from "./config/swagger";
+import userRoutes from "./routes/user.routes";
 
 const app: Express = express();
 const PORT = process.env.PORT ?? 5000;
@@ -33,6 +34,8 @@ app.get("/", (req: Request, res: Response) => {
         message: "IMS API is running",
     });
 });
+
+app.use("/api/users", userRoutes);
 
 // Error middleware
 

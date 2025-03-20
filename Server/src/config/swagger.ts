@@ -1,6 +1,8 @@
 import swaggerJSDoc from "swagger-jsdoc";
 import { version } from "../../package.json";
 
+const PORT = process.env.PORT ?? 5000;
+
 const options: swaggerJSDoc.Options = {
     definition: {
         openapi: "3.0.0",
@@ -15,7 +17,7 @@ const options: swaggerJSDoc.Options = {
         },
         servers: [
             {
-                url: "http://localhost:3000/api",
+                url: `http://localhost:${PORT}/api`,
                 description: "Development server",
             },
         ],
@@ -34,7 +36,6 @@ const options: swaggerJSDoc.Options = {
             },
         ],
         tags: [
-            { name: "Auth", description: "Authentication endpoints" },
             { name: "Users", description: "User management" },
             { name: "Products", description: "Product operations" },
             { name: "Categories", description: "Product categories" },
@@ -44,7 +45,7 @@ const options: swaggerJSDoc.Options = {
             { name: "Reports", description: "Reporting functionality" },
         ],
     },
-    apis: ["./src/routes/*.ts", "./src/models/*.ts"],
+    apis: ["./src/routes/*.ts"],
 };
 
 const swaggerSpec = swaggerJSDoc(options);

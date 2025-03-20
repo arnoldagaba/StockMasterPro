@@ -71,6 +71,17 @@ export interface UserLoginResponse {
     refreshToken: string;
 }
 
+export interface LoginResponse {
+    token: string;
+    refreshToken: string;
+    user: User;
+}
+
+export interface RefreshTokenResponse {
+    token: string;
+    refreshToken: string;
+}
+
 export interface IUserService {
     create(data: CreateUserDTO): Promise<User>;
     findById(id: number): Promise<User | null>;

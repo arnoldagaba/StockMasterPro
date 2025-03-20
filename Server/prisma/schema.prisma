@@ -140,6 +140,8 @@ model User {
   notifications         Notification[]
   alertRecipients       AlertRecipientUser[]
   UserSession           UserSession[]
+
+  @@index([email])
 }
 
 model UserSession {
@@ -151,6 +153,8 @@ model UserSession {
   expiresAt DateTime @map("expires_at")
   createdAt DateTime @default(now()) @map("created_at")
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
 }
 
 model Category {
@@ -165,6 +169,8 @@ model Category {
   subcategories Category[]     @relation("CategoryToSubcategory")
   products      Product[]
   alertSettings AlertSetting[]
+
+  @@index([parentId])
 }
 
 model Supplier {
@@ -179,6 +185,8 @@ model Supplier {
   createdAt      DateTime        @default(now()) @map("created_at")
   updatedAt      DateTime        @default(now()) @updatedAt @map("updated_at")
   purchaseOrders PurchaseOrder[]
+
+  @@index([name])
 }
 
 model Product {
@@ -187,8 +195,8 @@ model Product {
   name                  String
   description           String?                @db.Text
   categoryId            Int                    @map("category_id")
-  price                 Int // Ugandan currency (whole number)
-  cost                  Int // Ugandan currency (whole number)
+  price                 Int
+  cost                  Int
   taxRate               Decimal?               @map("tax_rate") @db.Decimal(5, 2)
   barcode               String?
   weight                Decimal?               @db.Decimal(10, 2)
@@ -210,6 +218,11 @@ model Product {
   asComponent           ProductComponent[]     @relation("ComponentProduct")
   hasComponents         ProductComponent[]     @relation("ParentProduct")
   productionOrders      ProductionOrder[]
+
+  @@index([sku])
+  @@index([name])
+  @@index([categoryId])
+  @@index([deletedAt])
 }
 
 model ProductImage {
@@ -220,6 +233,8 @@ model ProductImage {
   sortOrder Int      @default(0) @map("sort_order")
   createdAt DateTime @default(now()) @map("created_at")
   product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
 }
 
 model Location {
@@ -236,6 +251,9 @@ model Location {
   fromTransactions InventoryTransaction[] @relation("FromLocation")
   toTransactions   InventoryTransaction[] @relation("ToLocation")
   alertSettings    AlertSetting[]
+
+  @@index([name])
+  @@index([type])
 }
 
 model Inventory {
@@ -251,6 +269,8 @@ model Inventory {
   location         Location @relation(fields: [locationId], references: [id])
 
   @@unique([productId, locationId], name: "unique_product_location")
+  @@index([productId])
+  @@index([locationId])
 }
 
 model Customer {
@@ -263,6 +283,9 @@ model Customer {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
   orders    Order[]
+
+  @@index([email])
+  @@index([phone])
 }
 
 model Order {
@@ -275,17 +298,23 @@ model Order {
   shippingAddress String?     @map("shipping_address") @db.Text
   shippingMethod  String?     @map("shipping_method")
   paymentMethod   String?     @map("payment_method")
-  subtotal        Int // Ugandan currency (whole number)
-  tax             Int // Ugandan currency (whole number)
-  shippingCost    Int // Ugandan currency (whole number)
-  total           Int // Ugandan currency (whole number)
-  currency        String      @default("UGX") // Ugandan Shillings
+  subtotal        Int
+  tax             Int
+  shippingCost    Int
+  total           Int
+  currency        String      @default("UGX")
   notes           String?     @db.Text
   createdAt       DateTime    @default(now()) @map("created_at")
   updatedAt       DateTime    @default(now()) @updatedAt @map("updated_at")
   customer        Customer    @relation(fields: [customerId], references: [id])
   user            User        @relation(fields: [userId], references: [id])
   orderItems      OrderItem[]
+
+  @@index([orderNumber])
+  @@index([customerId])
+  @@index([userId])
+  @@index([status])
+  @@index([orderDate])
 }
 
 model OrderItem {
@@ -293,13 +322,16 @@ model OrderItem {
   orderId   Int      @map("order_id")
   productId Int      @map("product_id")
   quantity  Int
-  unitPrice Int // Ugandan currency (whole number)
-  unitCost  Int // Ugandan currency (whole number)
-  subtotal  Int // Ugandan currency (whole number)
+  unitPrice Int
+  unitCost  Int
+  subtotal  Int
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
   order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product   Product  @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@index([productId])
 }
 
 model PurchaseOrder {
@@ -311,12 +343,18 @@ model PurchaseOrder {
   expectedDeliveryDate DateTime?           @map("expected_delivery_date")
   status               PurchaseOrderStatus @default(DRAFT)
   notes                String?             @db.Text
-  total                Int // Ugandan currency (whole number)
+  total                Int
   createdAt            DateTime            @default(now()) @map("created_at")
   updatedAt            DateTime            @default(now()) @updatedAt @map("updated_at")
   supplier             Supplier            @relation(fields: [supplierId], references: [id])
   user                 User                @relation(fields: [userId], references: [id])
   purchaseOrderItems   PurchaseOrderItem[]
+
+  @@index([poNumber])
+  @@index([supplierId])
+  @@index([userId])
+  @@index([status])
+  @@index([orderDate])
 }
 
 model PurchaseOrderItem {
@@ -325,12 +363,15 @@ model PurchaseOrderItem {
   productId        Int           @map("product_id")
   quantityOrdered  Int           @map("quantity_ordered")
   quantityReceived Int           @default(0) @map("quantity_received")
-  unitCost         Int // Ugandan currency (whole number)
-  subtotal         Int // Ugandan currency (whole number)
+  unitCost         Int
+  subtotal         Int
   createdAt        DateTime      @default(now()) @map("created_at")
   updatedAt        DateTime      @default(now()) @updatedAt @map("updated_at")
   purchaseOrder    PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
   product          Product       @relation(fields: [productId], references: [id])
+
+  @@index([purchaseOrderId])
+  @@index([productId])
 }
 
 model InventoryTransaction {
@@ -350,6 +391,13 @@ model InventoryTransaction {
   fromLocation    Location?                @relation("FromLocation", fields: [fromLocationId], references: [id], onDelete: SetNull)
   toLocation      Location?                @relation("ToLocation", fields: [toLocationId], references: [id], onDelete: SetNull)
   user            User                     @relation(fields: [userId], references: [id])
+
+  @@index([productId])
+  @@index([transactionDate])
+  @@index([userId])
+  @@index([fromLocationId])
+  @@index([toLocationId])
+  @@index([referenceId, referenceType])
 }
 
 model AlertSetting {
@@ -368,6 +416,11 @@ model AlertSetting {
   notificationChannels AlertNotificationChannel[]
   recipientUsers       AlertRecipientUser[]
   notifications        Notification[]
+
+  @@index([productId])
+  @@index([categoryId])
+  @@index([locationId])
+  @@index([alertType])
 }
 
 model AlertNotificationChannel {
@@ -377,6 +430,7 @@ model AlertNotificationChannel {
   alertSetting   AlertSetting        @relation(fields: [alertSettingId], references: [id], onDelete: Cascade)
 
   @@unique([alertSettingId, channel], name: "unique_alert_channel")
+  @@index([alertSettingId])
 }
 
 model AlertRecipientUser {
@@ -387,6 +441,8 @@ model AlertRecipientUser {
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([alertSettingId, userId], name: "unique_alert_user")
+  @@index([alertSettingId])
+  @@index([userId])
 }
 
 model Notification {
@@ -403,6 +459,9 @@ model Notification {
   createdAt       DateTime      @default(now()) @map("created_at")
   user            User          @relation(fields: [recipientUserId], references: [id], onDelete: Cascade)
   alertSetting    AlertSetting? @relation(fields: [alertId], references: [id], onDelete: SetNull)
+
+  @@index([recipientUserId])
+  @@index([createdAt])
 }
 
 model Report {
@@ -419,6 +478,9 @@ model Report {
   user              User              @relation(fields: [createdBy], references: [id])
   parameters        ReportParameter[]
   reportData        ReportData[]
+
+  @@index([createdBy])
+  @@index([reportType])
 }
 
 model ReportParameter {
@@ -429,6 +491,7 @@ model ReportParameter {
   report   Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
 
   @@unique([reportId, key], name: "unique_report_parameter")
+  @@index([reportId])
 }
 
 model ReportData {
@@ -437,6 +500,8 @@ model ReportData {
   data      Json
   createdAt DateTime @default(now()) @map("created_at")
   report    Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
 }
 
 model ApiKey {
@@ -453,6 +518,8 @@ model ApiKey {
   user            User               @relation(fields: [createdBy], references: [id])
   permissions     ApiKeyPermission[]
   integrationLogs IntegrationLog[]
+
+  @@index([keyHash])
 }
 
 model ApiKeyPermission {
@@ -463,6 +530,7 @@ model ApiKeyPermission {
   apiKey         ApiKey         @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
 
   @@unique([apiKeyId, resource, permissionType], name: "unique_api_key_permission")
+  @@index([apiKeyId])
 }
 
 model IntegrationLog {
@@ -476,6 +544,9 @@ model IntegrationLog {
   apiKeyId        Int?                 @map("api_key_id")
   createdAt       DateTime             @default(now()) @map("created_at")
   apiKey          ApiKey?              @relation(fields: [apiKeyId], references: [id], onDelete: SetNull)
+
+  @@index([apiKeyId])
+  @@index([createdAt])
 }
 
 model AuditLog {
@@ -489,6 +560,10 @@ model AuditLog {
   ipAddress  String?  @map("ip_address")
   userAgent  String?  @map("user_agent") @db.Text
   createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
 }
 
 model ProductComponent {
@@ -503,6 +578,8 @@ model ProductComponent {
   component   Product  @relation("ComponentProduct", fields: [componentId], references: [id], onDelete: Cascade)
 
   @@unique([productId, componentId], name: "unique_product_component")
+  @@index([productId])
+  @@index([componentId])
 }
 
 model ProductionOrder {
@@ -519,4 +596,9 @@ model ProductionOrder {
   updatedAt   DateTime              @default(now()) @updatedAt @map("updated_at")
   product     Product               @relation(fields: [productId], references: [id])
   user        User                  @relation(fields: [createdBy], references: [id])
+
+  @@index([orderNumber])
+  @@index([productId])
+  @@index([createdBy])
+  @@index([status])
 }
