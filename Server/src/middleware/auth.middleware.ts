@@ -21,13 +21,15 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
         // Get authorization header
         const authHeader = req.headers.authorization;
         if (!authHeader) {
-            return res.status(401).json({ status: "error", message: "Authentication required" });
+            res.status(401).json({ status: "error", message: "Authentication required" });
+            return;
         }
 
         // Check for Bearer token
         const parts = authHeader.split(" ");
         if (parts.length !== 2 || parts[0] !== "Bearer") {
-            return res.status(401).json({ status: "error", message: "Invalid token format" });
+            res.status(401).json({ status: "error", message: "Invalid token format" });
+            return;
         }
 
         const token = parts[1];
@@ -35,7 +37,8 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
         // Check if token is valid in the database
         const isValid = await userServiceInstance.isTokenValid(token);
         if (!isValid) {
-            return res.status(401).json({ status: "error", message: "Invalid or expired token" });
+            res.status(401).json({ status: "error", message: "Invalid or expired token" });
+            return;
         }
 
         // Verify the token
@@ -50,10 +53,12 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
         next();
     } catch (error) {
         if (error instanceof jwt.JsonWebTokenError) {
-            return res.status(401).json({ status: "error", message: "Invalid token" });
+            res.status(401).json({ status: "error", message: "Invalid token" });
+            return;
         }
         if (error instanceof jwt.TokenExpiredError) {
-            return res.status(401).json({ status: "error", message: "Token expired" });
+            res.status(401).json({ status: "error", message: "Token expired" });
+            return;
         }
         next(error);
     }
@@ -65,11 +70,13 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
 export const authorize = (allowedRoles: string[]) => {
     return (req: Request, res: Response, next: NextFunction) => {
         if (!req.user) {
-            return res.status(401).json({ status: "error", message: "Authentication required" });
+            res.status(401).json({ status: "error", message: "Authentication required" });
+            return;
         }
 
         if (!allowedRoles.includes(req.user.role)) {
-            return res.status(403).json({ status: "error", message: "Access forbidden" });
+            res.status(403).json({ status: "error", message: "Access forbidden" });
+            return;
         }
 
         next();
