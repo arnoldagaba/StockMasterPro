@@ -1,9 +1,16 @@
 import { PrismaClient, Location, Inventory, Prisma } from "@prisma/client";
-import { prisma } from "../utils/prisma";
-import { ApiError } from "../utils/apiError";
-import { CreateLocationInput, UpdateLocationInput } from "../validators/location.validator";
+import prisma from "@/config/prisma";
+import { ApiError } from "@/utils/apiError";
+import { CreateLocationInput, UpdateLocationInput } from "@/validators/location.validator";
 import { PaginationParams, SearchFilter, ILocationService } from "./interfaces";
 import { BaseServiceImpl } from "./base.service";
+
+// Define enum for location types
+enum LocationType {
+    WAREHOUSE = "WAREHOUSE",
+    STORE = "STORE",
+    OFFICE = "OFFICE",
+}
 
 export class LocationService extends BaseServiceImpl<Location, Prisma.LocationCreateInput, Prisma.LocationUpdateInput> implements ILocationService {
     constructor(prisma: PrismaClient) {
@@ -17,7 +24,7 @@ export class LocationService extends BaseServiceImpl<Location, Prisma.LocationCr
                     name: {
                         equals: name,
                         mode: "insensitive",
-                    },
+                    } as Prisma.StringFilter<"Location">,
                     deletedAt: null,
                 },
             });
@@ -33,7 +40,7 @@ export class LocationService extends BaseServiceImpl<Location, Prisma.LocationCr
         try {
             const locations = await this.prisma.location.findMany({
                 where: {
-                    type: type as any,
+                    type: type as LocationType,
                     deletedAt: null,
                 },
                 orderBy: {
@@ -84,7 +91,7 @@ export class LocationService extends BaseServiceImpl<Location, Prisma.LocationCr
                     name: {
                         equals: locationData.name,
                         mode: "insensitive",
-                    },
+                    } as Prisma.StringFilter<"Location">,
                     deletedAt: null,
                 },
             });
@@ -123,7 +130,7 @@ export class LocationService extends BaseServiceImpl<Location, Prisma.LocationCr
                         name: {
                             equals: locationData.name,
                             mode: "insensitive",
-                        },
+                        } as Prisma.StringFilter<"Location">,
                         id: {
                             not: id,
                         },
@@ -139,7 +146,7 @@ export class LocationService extends BaseServiceImpl<Location, Prisma.LocationCr
             // Update location
             const updatedLocation = await this.prisma.location.update({
                 where: { id },
-                data: locationData,
+                data: { ...locationData, id: undefined },
             });
 
             return updatedLocation;
@@ -220,10 +227,10 @@ export class LocationService extends BaseServiceImpl<Location, Prisma.LocationCr
         totalPages: number;
     }> {
         try {
-            const { page = 1, limit = 10, sortBy = "name", sortOrder = "asc", filters = {} } = params || {};
+            const { page = 1, limit = 10, sortBy = "name", sortOrder = "asc", filters = {}, searchTerm = "" } = params || {};
 
             // Build the where clause
-            const where: any = {
+            const where: Prisma.LocationWhereInput = {
                 deletedAt: null,
             };
 
@@ -257,7 +264,7 @@ export class LocationService extends BaseServiceImpl<Location, Prisma.LocationCr
                 limit,
                 totalPages: Math.ceil(total / limit),
             };
-        } catch (error) {
+        } catch {
             throw new ApiError(500, "Error retrieving locations");
         }
     }
