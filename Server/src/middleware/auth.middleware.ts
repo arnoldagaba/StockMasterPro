@@ -1,17 +1,15 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
-import { userService } from "../services";
+import { userServiceInstance } from "@/services";
 
 // Extend the Request type to include a user property
-declare global {
-    namespace Express {
-        interface Request {
-            user?: {
-                userId: number;
-                email: string;
-                role: string;
-            };
-        }
+declare module "express" {
+    interface Request {
+        user?: {
+            userId: number;
+            email: string;
+            role: string;
+        };
     }
 }
 
@@ -35,7 +33,7 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
         const token = parts[1];
 
         // Check if token is valid in the database
-        const isValid = await userService.isTokenValid(token);
+        const isValid = await userServiceInstance.isTokenValid(token);
         if (!isValid) {
             return res.status(401).json({ status: "error", message: "Invalid or expired token" });
         }

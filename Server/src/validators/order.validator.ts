@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { numberStringToInt } from "../utils/validators";
+import { numberStringToInt } from "@/utils/validators";
 
 export const createOrderSchema = z.object({
     customerId: z
