@@ -1,11 +1,28 @@
 import { Request, Response } from "express";
-import { orderService } from "../services/order.service";
-import { CreateOrderInput, UpdateOrderInput, UpdateOrderStatusInput, ProcessPaymentInput } from "../validators/order.validator";
+import { orderServiceInstance } from "@/services";
+import { CreateOrderInput, UpdateOrderInput, ProcessPaymentInput } from "@/validators/order.validator";
+import { Prisma } from "@prisma/client";
+
+// Custom error interface with statusCode property
+interface ApiError extends Error {
+    statusCode?: number;
+}
+
+// Order filters interface
+interface OrderFilters {
+    status?: string | string[];
+    customerId?: string | string[];
+    startDate?: string | string[];
+    endDate?: string | string[];
+    minTotal?: string | string[];
+    maxTotal?: string | string[];
+    [key: string]: unknown;
+}
 
 export const createOrder = async (req: Request, res: Response) => {
     try {
         const orderData: CreateOrderInput = req.body;
-        const userId = req.user?.id;
+        const userId = req.user?.userId;
 
         if (!userId) {
             return res.status(401).json({
@@ -14,17 +31,41 @@ export const createOrder = async (req: Request, res: Response) => {
             });
         }
 
-        const order = await orderService.createOrderWithItems(orderData, userId);
+        // First calculate order totals
+        const totals = await orderServiceInstance.calculateOrderTotals(orderData.orderItems);
+
+        // Create order with properly formatted data
+        const orderInput: Prisma.OrderCreateInput = {
+            orderNumber: `ORD${Date.now()}`,
+            orderDate: new Date(),
+            status: "PENDING",
+            customer: { connect: { id: orderData.customerId } },
+            user: { connect: { id: userId } },
+            shippingAddress: orderData.shippingAddress,
+            shippingMethod: orderData.shippingMethod,
+            paymentMethod: orderData.paymentMethod,
+            notes: orderData.notes,
+            subtotal: totals.subtotal,
+            tax: totals.tax,
+            shippingCost: totals.shippingCost || 0,
+            total: totals.total,
+        };
+
+        // Pass the order items with a type assertion
+        const order = await orderServiceInstance.createOrderWithItems(orderInput, orderData.orderItems as unknown as Prisma.OrderItemCreateInput[]);
 
         return res.status(201).json({
             status: "success",
             message: "Order created successfully",
             data: order,
         });
-    } catch (error: any) {
-        return res.status(error.statusCode || 500).json({
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "Error creating order";
+        const statusCode = (error as ApiError)?.statusCode || 500;
+
+        return res.status(statusCode).json({
             status: "error",
-            message: error.message || "Error creating order",
+            message: errorMessage,
         });
     }
 };
@@ -34,17 +75,20 @@ export const updateOrder = async (req: Request, res: Response) => {
         const id = Number(req.params.id);
         const orderData: UpdateOrderInput = req.body;
 
-        const order = await orderService.updateOrder(id, orderData);
+        const order = await orderServiceInstance.updateOrder(id, orderData);
 
         return res.status(200).json({
             status: "success",
             message: "Order updated successfully",
             data: order,
         });
-    } catch (error: any) {
-        return res.status(error.statusCode || 500).json({
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "Error updating order";
+        const statusCode = (error as ApiError)?.statusCode || 500;
+
+        return res.status(statusCode).json({
             status: "error",
-            message: error.message || "Error updating order",
+            message: errorMessage,
         });
     }
 };
@@ -53,7 +97,7 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
     try {
         const id = Number(req.params.id);
         const { status } = req.body;
-        const userId = req.user?.id;
+        const userId = req.user?.userId;
 
         if (!userId) {
             return res.status(401).json({
@@ -62,17 +106,20 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
             });
         }
 
-        const order = await orderService.updateStatus(id, status, userId);
+        const order = await orderServiceInstance.updateStatus(id, status);
 
         return res.status(200).json({
             status: "success",
             message: `Order status updated to ${status}`,
             data: order,
         });
-    } catch (error: any) {
-        return res.status(error.statusCode || 500).json({
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "Error updating order status";
+        const statusCode = (error as ApiError)?.statusCode || 500;
+
+        return res.status(statusCode).json({
             status: "error",
-            message: error.message || "Error updating order status",
+            message: errorMessage,
         });
     }
 };
@@ -81,24 +128,7 @@ export const getOrderById = async (req: Request, res: Response) => {
     try {
         const id = Number(req.params.id);
 
-        const order = await orderService.findById(id, {
-            include: {
-                customer: true,
-                orderItems: {
-                    include: {
-                        product: true,
-                    },
-                },
-                user: {
-                    select: {
-                        id: true,
-                        email: true,
-                        firstName: true,
-                        lastName: true,
-                    },
-                },
-            },
-        });
+        const order = await orderServiceInstance.findById(id);
 
         if (!order) {
             return res.status(404).json({
@@ -111,10 +141,13 @@ export const getOrderById = async (req: Request, res: Response) => {
             status: "success",
             data: order,
         });
-    } catch (error: any) {
-        return res.status(error.statusCode || 500).json({
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "Error retrieving order";
+        const statusCode = (error as ApiError)?.statusCode || 500;
+
+        return res.status(statusCode).json({
             status: "error",
-            message: error.message || "Error retrieving order",
+            message: errorMessage,
         });
     }
 };
@@ -123,7 +156,7 @@ export const getOrderByNumber = async (req: Request, res: Response) => {
     try {
         const orderNumber = req.params.orderNumber;
 
-        const order = await orderService.findByOrderNumber(orderNumber);
+        const order = await orderServiceInstance.findByOrderNumber(orderNumber);
 
         if (!order) {
             return res.status(404).json({
@@ -136,10 +169,13 @@ export const getOrderByNumber = async (req: Request, res: Response) => {
             status: "success",
             data: order,
         });
-    } catch (error: any) {
-        return res.status(error.statusCode || 500).json({
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "Error retrieving order";
+        const statusCode = (error as ApiError)?.statusCode || 500;
+
+        return res.status(statusCode).json({
             status: "error",
-            message: error.message || "Error retrieving order",
+            message: errorMessage,
         });
     }
 };
@@ -148,33 +184,33 @@ export const getAllOrders = async (req: Request, res: Response) => {
     try {
         const { page, limit, sortBy, sortOrder, status, customerId, startDate, endDate, minTotal, maxTotal } = req.query;
 
-        const filters: any = {};
+        const filters: OrderFilters = {};
 
         if (status) {
-            filters.status = status;
+            filters.status = status as string | string[];
         }
 
         if (customerId) {
-            filters.customerId = customerId;
+            filters.customerId = customerId as string | string[];
         }
 
         if (startDate) {
-            filters.startDate = startDate;
+            filters.startDate = startDate as string | string[];
         }
 
         if (endDate) {
-            filters.endDate = endDate;
+            filters.endDate = endDate as string | string[];
         }
 
         if (minTotal) {
-            filters.minTotal = minTotal;
+            filters.minTotal = minTotal as string | string[];
         }
 
         if (maxTotal) {
-            filters.maxTotal = maxTotal;
+            filters.maxTotal = maxTotal as string | string[];
         }
 
-        const result = await orderService.filterOrders({
+        const result = await orderServiceInstance.filterOrders({
             page: page ? Number(page) : undefined,
             limit: limit ? Number(limit) : undefined,
             sortBy: sortBy as string | undefined,
@@ -186,10 +222,13 @@ export const getAllOrders = async (req: Request, res: Response) => {
             status: "success",
             ...result,
         });
-    } catch (error: any) {
-        return res.status(error.statusCode || 500).json({
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "Error retrieving orders";
+        const statusCode = (error as ApiError)?.statusCode || 500;
+
+        return res.status(statusCode).json({
             status: "error",
-            message: error.message || "Error retrieving orders",
+            message: errorMessage,
         });
     }
 };
@@ -198,16 +237,19 @@ export const getOrdersByCustomer = async (req: Request, res: Response) => {
     try {
         const customerId = Number(req.params.customerId);
 
-        const orders = await orderService.findByCustomer(customerId);
+        const orders = await orderServiceInstance.findByCustomer(customerId);
 
         return res.status(200).json({
             status: "success",
             data: orders,
         });
-    } catch (error: any) {
-        return res.status(error.statusCode || 500).json({
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "Error retrieving customer orders";
+        const statusCode = (error as ApiError)?.statusCode || 500;
+
+        return res.status(statusCode).json({
             status: "error",
-            message: error.message || "Error retrieving customer orders",
+            message: errorMessage,
         });
     }
 };
@@ -216,16 +258,19 @@ export const getOrdersByStatus = async (req: Request, res: Response) => {
     try {
         const status = req.params.status;
 
-        const orders = await orderService.findByStatus(status);
+        const orders = await orderServiceInstance.findByStatus(status);
 
         return res.status(200).json({
             status: "success",
             data: orders,
         });
-    } catch (error: any) {
-        return res.status(error.statusCode || 500).json({
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "Error retrieving orders by status";
+        const statusCode = (error as ApiError)?.statusCode || 500;
+
+        return res.status(statusCode).json({
             status: "error",
-            message: error.message || "Error retrieving orders by status",
+            message: errorMessage,
         });
     }
 };
@@ -237,16 +282,19 @@ export const getOrdersByDateRange = async (req: Request, res: Response) => {
         const start = new Date(startDate);
         const end = new Date(endDate);
 
-        const orders = await orderService.findByDateRange(start, end);
+        const orders = await orderServiceInstance.findByDateRange(start, end);
 
         return res.status(200).json({
             status: "success",
             data: orders,
         });
-    } catch (error: any) {
-        return res.status(error.statusCode || 500).json({
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "Error retrieving orders by date range";
+        const statusCode = (error as ApiError)?.statusCode || 500;
+
+        return res.status(statusCode).json({
             status: "error",
-            message: error.message || "Error retrieving orders by date range",
+            message: errorMessage,
         });
     }
 };
@@ -255,16 +303,19 @@ export const calculateOrderTotals = async (req: Request, res: Response) => {
     try {
         const { items } = req.body;
 
-        const totals = await orderService.calculateOrderTotals(items);
+        const totals = await orderServiceInstance.calculateOrderTotals(items);
 
         return res.status(200).json({
             status: "success",
             data: totals,
         });
-    } catch (error: any) {
-        return res.status(error.statusCode || 500).json({
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "Error calculating order totals";
+        const statusCode = (error as ApiError)?.statusCode || 500;
+
+        return res.status(statusCode).json({
             status: "error",
-            message: error.message || "Error calculating order totals",
+            message: errorMessage,
         });
     }
 };
@@ -273,17 +324,20 @@ export const processPayment = async (req: Request, res: Response) => {
     try {
         const paymentData: ProcessPaymentInput = req.body;
 
-        const result = await orderService.processPayment(paymentData.orderId, paymentData.paymentMethod, paymentData.amount);
+        const result = await orderServiceInstance.processPayment(paymentData.orderId, paymentData.paymentMethod, paymentData.amount);
 
         return res.status(200).json({
             status: "success",
             message: "Payment processed successfully",
             data: { success: result },
         });
-    } catch (error: any) {
-        return res.status(error.statusCode || 500).json({
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "Error processing payment";
+        const statusCode = (error as ApiError)?.statusCode || 500;
+
+        return res.status(statusCode).json({
             status: "error",
-            message: error.message || "Error processing payment",
+            message: errorMessage,
         });
     }
 };
@@ -292,16 +346,19 @@ export const generateInvoice = async (req: Request, res: Response) => {
     try {
         const orderId = Number(req.params.id);
 
-        const invoiceUrl = await orderService.generateInvoice(orderId);
+        const invoiceUrl = await orderServiceInstance.generateInvoice(orderId);
 
         return res.status(200).json({
             status: "success",
             data: { invoiceUrl },
         });
-    } catch (error: any) {
-        return res.status(error.statusCode || 500).json({
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "Error generating invoice";
+        const statusCode = (error as ApiError)?.statusCode || 500;
+
+        return res.status(statusCode).json({
             status: "error",
-            message: error.message || "Error generating invoice",
+            message: errorMessage,
         });
     }
 };
