@@ -1,11 +1,15 @@
 import { Request, Response, NextFunction } from "express";
-import { categoryService } from "../services";
-import { CreateCategoryInput, UpdateCategoryInput } from "../validators/category.validator";
+import { categoryServiceInstance } from "@/services";
+import { CreateCategoryInput, UpdateCategoryInput } from "@/validators/category.validator";
 
-export const createCategory = async (req: Request<{}, {}, CreateCategoryInput>, res: Response, next: NextFunction) => {
+export const createCategory = async (
+    req: Request<Record<string, never>, Record<string, never>, CreateCategoryInput>,
+    res: Response,
+    next: NextFunction,
+) => {
     try {
         const categoryData = req.body;
-        const category = await categoryService.createCategory(categoryData);
+        const category = await categoryServiceInstance.createCategory(categoryData);
         return res.status(201).json({
             success: true,
             data: category,
@@ -15,11 +19,11 @@ export const createCategory = async (req: Request<{}, {}, CreateCategoryInput>, 
     }
 };
 
-export const updateCategory = async (req: Request<{ id: number }, {}, UpdateCategoryInput>, res: Response, next: NextFunction) => {
+export const updateCategory = async (req: Request<{ id: number }, Record<string, never>, UpdateCategoryInput>, res: Response, next: NextFunction) => {
     try {
         const { id } = req.params;
         const categoryData = req.body;
-        const category = await categoryService.updateCategory(id, categoryData);
+        const category = await categoryServiceInstance.updateCategory(id, categoryData);
         return res.status(200).json({
             success: true,
             data: category,
@@ -32,7 +36,7 @@ export const updateCategory = async (req: Request<{ id: number }, {}, UpdateCate
 export const deleteCategory = async (req: Request<{ id: number }>, res: Response, next: NextFunction) => {
     try {
         const { id } = req.params;
-        await categoryService.deleteCategory(id);
+        await categoryServiceInstance.deleteCategory(id);
         return res.status(200).json({
             success: true,
             message: "Category deleted successfully",
@@ -45,7 +49,7 @@ export const deleteCategory = async (req: Request<{ id: number }>, res: Response
 export const getCategoryById = async (req: Request<{ id: number }>, res: Response, next: NextFunction) => {
     try {
         const { id } = req.params;
-        const category = await categoryService.getCategoryById(id);
+        const category = await categoryServiceInstance.getCategoryById(id);
         return res.status(200).json({
             success: true,
             data: category,
@@ -57,7 +61,7 @@ export const getCategoryById = async (req: Request<{ id: number }>, res: Respons
 
 export const getAllCategories = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const categories = await categoryService.getAllCategories();
+        const categories = await categoryServiceInstance.getAllCategories();
         return res.status(200).json({
             success: true,
             data: categories,
@@ -69,7 +73,7 @@ export const getAllCategories = async (req: Request, res: Response, next: NextFu
 
 export const getCategoryHierarchy = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const hierarchy = await categoryService.getCategoryHierarchy();
+        const hierarchy = await categoryServiceInstance.getCategoryHierarchy();
         return res.status(200).json({
             success: true,
             data: hierarchy,
@@ -82,7 +86,7 @@ export const getCategoryHierarchy = async (req: Request, res: Response, next: Ne
 export const getSubcategories = async (req: Request<{ id: number }>, res: Response, next: NextFunction) => {
     try {
         const { id } = req.params;
-        const subcategories = await categoryService.getSubcategories(id);
+        const subcategories = await categoryServiceInstance.getSubcategories(id);
         return res.status(200).json({
             success: true,
             data: subcategories,
@@ -95,7 +99,7 @@ export const getSubcategories = async (req: Request<{ id: number }>, res: Respon
 export const getCategoryWithProducts = async (req: Request<{ id: number }>, res: Response, next: NextFunction) => {
     try {
         const { id } = req.params;
-        const categoryWithProducts = await categoryService.getCategoryWithProducts(id);
+        const categoryWithProducts = await categoryServiceInstance.getCategoryWithProducts(id);
         return res.status(200).json({
             success: true,
             data: categoryWithProducts,
