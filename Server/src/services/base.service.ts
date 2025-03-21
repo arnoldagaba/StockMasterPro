@@ -1,6 +1,11 @@
 import { PaginationParams, SearchFilter, BaseService } from "./interfaces";
 import { PrismaClient } from "@prisma/client";
 
+// Define interface for Prisma model with fields property
+interface PrismaModel {
+    fields: Record<string, unknown>;
+}
+
 export abstract class BaseServiceImpl<T, TCreateInput, TUpdateInput> implements BaseService<T, TCreateInput, TUpdateInput> {
     protected prisma: PrismaClient;
     protected modelName: string;
@@ -26,8 +31,8 @@ export abstract class BaseServiceImpl<T, TCreateInput, TUpdateInput> implements 
             const where: Record<string, unknown> = { ...filters };
 
             // Handle deleted records if the model has deletedAt field
-            // @ts-ignore - we check at runtime if the field exists
-            if ("deletedAt" in (this.prisma[this.modelName] as any).fields) {
+            // @ts-expect-error - we check at runtime if the field exists
+            if ("deletedAt" in (this.prisma[this.modelName] as PrismaModel).fields) {
                 where.deletedAt = null;
             }
 
@@ -42,7 +47,7 @@ export abstract class BaseServiceImpl<T, TCreateInput, TUpdateInput> implements 
             }
 
             // Dynamic model access using the modelName
-            // @ts-ignore - Prisma clients are type-safe but we use dynamic access
+            // @ts-expect-error - Prisma clients are type-safe but we use dynamic access
             const model = this.prisma[this.modelName];
 
             // Get total count of records matching the where clause
@@ -73,13 +78,12 @@ export abstract class BaseServiceImpl<T, TCreateInput, TUpdateInput> implements 
      */
     async findById(id: number): Promise<T | null> {
         try {
-            // @ts-ignore - Prisma clients are type-safe but we use dynamic access
+            // @ts-expect-error - Prisma clients are type-safe but we use dynamic access
             const model = this.prisma[this.modelName];
 
             // Handle deleted records if the model has deletedAt field
             const where: Record<string, unknown> = { id };
-            // @ts-ignore - we check at runtime if the field exists
-            if ("deletedAt" in (model as any).fields) {
+            if ("deletedAt" in (model as PrismaModel).fields) {
                 where.deletedAt = null;
             }
 
@@ -96,7 +100,7 @@ export abstract class BaseServiceImpl<T, TCreateInput, TUpdateInput> implements 
      */
     async create(data: TCreateInput): Promise<T> {
         try {
-            // @ts-ignore - Prisma clients are type-safe but we use dynamic access
+            // @ts-expect-error - Prisma clients are type-safe but we use dynamic access
             const model = this.prisma[this.modelName];
             const result = await model.create({ data });
             return result as T;
@@ -111,7 +115,7 @@ export abstract class BaseServiceImpl<T, TCreateInput, TUpdateInput> implements 
      */
     async update(id: number, data: TUpdateInput): Promise<T> {
         try {
-            // @ts-ignore - Prisma clients are type-safe but we use dynamic access
+            // @ts-expect-error - Prisma clients are type-safe but we use dynamic access
             const model = this.prisma[this.modelName];
             const result = await model.update({
                 where: { id },
@@ -129,12 +133,11 @@ export abstract class BaseServiceImpl<T, TCreateInput, TUpdateInput> implements 
      */
     async delete(id: number): Promise<T> {
         try {
-            // @ts-ignore - Prisma clients are type-safe but we use dynamic access
+            // @ts-expect-error - Prisma clients are type-safe but we use dynamic access
             const model = this.prisma[this.modelName];
 
             // Check if the model supports soft delete
-            // @ts-ignore - we check at runtime if the field exists
-            if ("deletedAt" in (model as any).fields) {
+            if ("deletedAt" in (model as PrismaModel).fields) {
                 // Soft delete
                 const result = await model.update({
                     where: { id },
