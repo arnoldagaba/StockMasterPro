@@ -1,11 +1,15 @@
 import { Request, Response, NextFunction } from "express";
-import { permissionService } from "../services";
-import { CreatePermissionInput, UpdatePermissionInput } from "../validators/permission.validator";
+import { permissionServiceInstance } from "@/services";
+import { CreatePermissionInput, UpdatePermissionInput } from "@/validators/permission.validator";
 
-export const createPermission = async (req: Request<{}, {}, CreatePermissionInput>, res: Response, next: NextFunction) => {
+export const createPermission = async (
+    req: Request<Record<string, never>, Record<string, never>, CreatePermissionInput>,
+    res: Response,
+    next: NextFunction,
+) => {
     try {
         const permissionData = req.body;
-        const permission = await permissionService.createPermission(permissionData);
+        const permission = await permissionServiceInstance.create(permissionData);
         return res.status(201).json({
             success: true,
             data: permission,
@@ -15,11 +19,15 @@ export const createPermission = async (req: Request<{}, {}, CreatePermissionInpu
     }
 };
 
-export const updatePermission = async (req: Request<{ id: number }, {}, UpdatePermissionInput>, res: Response, next: NextFunction) => {
+export const updatePermission = async (
+    req: Request<{ id: number }, Record<string, never>, UpdatePermissionInput>,
+    res: Response,
+    next: NextFunction,
+) => {
     try {
         const { id } = req.params;
         const permissionData = req.body;
-        const permission = await permissionService.updatePermission(id, permissionData);
+        const permission = await permissionServiceInstance.update(id, permissionData);
         return res.status(200).json({
             success: true,
             data: permission,
@@ -32,7 +40,7 @@ export const updatePermission = async (req: Request<{ id: number }, {}, UpdatePe
 export const deletePermission = async (req: Request<{ id: number }>, res: Response, next: NextFunction) => {
     try {
         const { id } = req.params;
-        await permissionService.deletePermission(id);
+        await permissionServiceInstance.delete(id);
         return res.status(200).json({
             success: true,
             message: "Permission deleted successfully",
@@ -45,7 +53,7 @@ export const deletePermission = async (req: Request<{ id: number }>, res: Respon
 export const getPermissionById = async (req: Request<{ id: number }>, res: Response, next: NextFunction) => {
     try {
         const { id } = req.params;
-        const permission = await permissionService.getPermissionById(id);
+        const permission = await permissionServiceInstance.findById(id);
         return res.status(200).json({
             success: true,
             data: permission,
@@ -57,10 +65,13 @@ export const getPermissionById = async (req: Request<{ id: number }>, res: Respo
 
 export const getAllPermissions = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const permissions = await permissionService.getAllPermissions();
+        const permissions = await permissionServiceInstance.findAll();
         return res.status(200).json({
             success: true,
-            data: permissions,
+            data: permissions.data,
+            total: permissions.total,
+            page: permissions.page,
+            limit: permissions.limit,
         });
     } catch (error) {
         next(error);
