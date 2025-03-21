@@ -153,9 +153,10 @@ export class UserService extends BaseServiceImpl<User, Prisma.UserCreateInput, P
             });
 
             // Remove password from returned user
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
             const { password, ...userWithoutPassword } = user;
             return {
-                user: userWithoutPassword as User,
+                user: userWithoutPassword as unknown as User,
                 token,
                 refreshToken,
             };

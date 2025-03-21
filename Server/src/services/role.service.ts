@@ -1,4 +1,4 @@
-import { PrismaClient, Role, Prisma } from "@prisma/client";
+import { PrismaClient, Role, Prisma, RoleName } from "@prisma/client";
 import { IRoleService } from "./interfaces";
 import { BaseServiceImpl } from "./base.service";
 
@@ -13,7 +13,7 @@ export class RoleService extends BaseServiceImpl<Role, Prisma.RoleCreateInput, P
     async findByName(name: string): Promise<Role | null> {
         try {
             const role = await this.prisma.role.findFirst({
-                where: { name: name as Prisma.RoleNameNullableFilter },
+                where: { name: name as unknown as RoleName },
             });
             return role;
         } catch (error) {
