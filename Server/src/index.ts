@@ -23,7 +23,7 @@ app.use(basicLimiter);
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // JSON endpoint to serve the OpenAPI spec directly
-app.get("/api-docs.json", (req, res) => {
+app.get("/api-docs.json", (req: Request, res: Response) => {
     res.setHeader("Content-Type", "application/json");
     res.send(swaggerSpec);
 });
