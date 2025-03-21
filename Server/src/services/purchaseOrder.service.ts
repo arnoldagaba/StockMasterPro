@@ -115,7 +115,7 @@ export class PurchaseOrderService
             const supplierId = data.supplier?.connect?.id || (data as Record<string, unknown>).supplierId;
 
             const supplier = await this.prisma.supplier.findUnique({
-                where: { id: supplierId as number },
+                where: { id: supplierId as unknown as number },
                 select: { id: true, name: true, deletedAt: true },
             });
 
@@ -231,7 +231,7 @@ export class PurchaseOrderService
             // Check if supplier exists (if supplier ID is being updated)
             if (poData.supplierId) {
                 const supplier = await this.prisma.supplier.findUnique({
-                    where: { id: poData.supplierId },
+                    where: { id: poData.supplierId as unknown as number },
                     select: { id: true, name: true, deletedAt: true },
                 });
 
@@ -248,7 +248,7 @@ export class PurchaseOrderService
             const updatedPO = await this.prisma.purchaseOrder.update({
                 where: { id },
                 data: {
-                    supplierId: poData.supplierId,
+                    supplierId: poData.supplierId as unknown as number,
                     expectedDeliveryDate: poData.expectedDeliveryDate,
                     notes: poData.notes,
                 },

@@ -23,6 +23,7 @@ import {
     PurchaseOrderItem,
     Notification,
 } from "@prisma/client";
+import { UpdatePurchaseOrderInput } from "../../validators/purchaseOrder.validator";
 
 // Common interface for pagination
 export interface PaginationParams {
@@ -152,7 +153,8 @@ export interface IPurchaseOrderService extends BaseService<PurchaseOrder, Prisma
         data: Prisma.PurchaseOrderCreateInput,
         items: Prisma.PurchaseOrderItemCreateInput[],
     ): Promise<PurchaseOrder & { purchaseOrderItems: PurchaseOrderItem[] }>;
-    updateStatus(poId: number, status: string): Promise<PurchaseOrder>;
+    updatePurchaseOrder(id: number, poData: UpdatePurchaseOrderInput): Promise<PurchaseOrder>;
+    updateStatus(poId: number, status: string, userId?: number): Promise<PurchaseOrder>;
     receiveItems(poId: number, receivedItems: { itemId: number; quantityReceived: number }[]): Promise<PurchaseOrderItem[]>;
     generatePDF(poId: number): Promise<string>; // Returns PO PDF URL or path
 }
