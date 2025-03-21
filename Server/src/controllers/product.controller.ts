@@ -1,11 +1,15 @@
 import { Request, Response, NextFunction } from "express";
-import { productService } from "../services";
-import { CreateProductInput, UpdateProductInput, AddProductComponentInput } from "../validators/product.validator";
+import { productServiceInstance } from "@/services";
+import { CreateProductInput, UpdateProductInput, AddProductComponentInput } from "@/validators/product.validator";
 
-export const createProduct = async (req: Request<{}, {}, CreateProductInput>, res: Response, next: NextFunction) => {
+export const createProduct = async (
+    req: Request<Record<string, never>, Record<string, never>, CreateProductInput>,
+    res: Response,
+    next: NextFunction,
+) => {
     try {
         const productData = req.body;
-        const product = await productService.createProduct(productData);
+        const product = await productServiceInstance.createProduct(productData);
         return res.status(201).json({
             success: true,
             data: product,
@@ -15,11 +19,11 @@ export const createProduct = async (req: Request<{}, {}, CreateProductInput>, re
     }
 };
 
-export const updateProduct = async (req: Request<{ id: number }, {}, UpdateProductInput>, res: Response, next: NextFunction) => {
+export const updateProduct = async (req: Request<{ id: number }, Record<string, never>, UpdateProductInput>, res: Response, next: NextFunction) => {
     try {
         const { id } = req.params;
         const productData = req.body;
-        const product = await productService.updateProduct(id, productData);
+        const product = await productServiceInstance.updateProduct(id, productData);
         return res.status(200).json({
             success: true,
             data: product,
@@ -32,7 +36,7 @@ export const updateProduct = async (req: Request<{ id: number }, {}, UpdateProdu
 export const deleteProduct = async (req: Request<{ id: number }>, res: Response, next: NextFunction) => {
     try {
         const { id } = req.params;
-        await productService.deleteProduct(id);
+        await productServiceInstance.deleteProduct(id);
         return res.status(200).json({
             success: true,
             message: "Product deleted successfully",
@@ -45,7 +49,7 @@ export const deleteProduct = async (req: Request<{ id: number }>, res: Response,
 export const getProductById = async (req: Request<{ id: number }>, res: Response, next: NextFunction) => {
     try {
         const { id } = req.params;
-        const product = await productService.getProductById(id);
+        const product = await productServiceInstance.getProductById(id);
         return res.status(200).json({
             success: true,
             data: product,
@@ -68,7 +72,7 @@ export const getAllProducts = async (req: Request, res: Response, next: NextFunc
             filters,
         };
 
-        const products = await productService.getAllProducts(paginationParams);
+        const products = await productServiceInstance.getAllProducts(paginationParams);
         return res.status(200).json({
             success: true,
             ...products,
@@ -91,7 +95,7 @@ export const getProductsByCategory = async (req: Request<{ categoryId: number }>
             searchTerm: searchTerm as string,
         };
 
-        const products = await productService.findByCategory(categoryId, paginationParams);
+        const products = await productServiceInstance.findByCategory(categoryId, paginationParams);
 
         return res.status(200).json({
             success: true,
@@ -102,10 +106,14 @@ export const getProductsByCategory = async (req: Request<{ categoryId: number }>
     }
 };
 
-export const getProductBySku = async (req: Request<{}, {}, {}, { sku: string }>, res: Response, next: NextFunction) => {
+export const getProductBySku = async (
+    req: Request<Record<string, never>, Record<string, never>, Record<string, never>, { sku: string }>,
+    res: Response,
+    next: NextFunction,
+) => {
     try {
         const { sku } = req.query;
-        const product = await productService.findBySku(sku);
+        const product = await productServiceInstance.findBySku(sku);
 
         if (!product) {
             return res.status(404).json({
@@ -124,7 +132,7 @@ export const getProductBySku = async (req: Request<{}, {}, {}, { sku: string }>,
 };
 
 export const updateProductStock = async (
-    req: Request<{ id: number }, {}, { locationId: number; quantity: number }>,
+    req: Request<{ id: number }, Record<string, never>, { locationId: number; quantity: number }>,
     res: Response,
     next: NextFunction,
 ) => {
@@ -132,7 +140,7 @@ export const updateProductStock = async (
         const { id } = req.params;
         const { locationId, quantity } = req.body;
 
-        const inventory = await productService.updateStock(id, locationId, quantity);
+        const inventory = await productServiceInstance.updateStock(id, locationId, quantity);
 
         return res.status(200).json({
             success: true,
@@ -146,7 +154,7 @@ export const updateProductStock = async (
 export const getProductWithInventory = async (req: Request<{ id: number }>, res: Response, next: NextFunction) => {
     try {
         const { id } = req.params;
-        const product = await productService.getProductWithInventory(id);
+        const product = await productServiceInstance.getProductWithInventory(id);
 
         return res.status(200).json({
             success: true,
@@ -160,7 +168,7 @@ export const getProductWithInventory = async (req: Request<{ id: number }>, res:
 export const getProductComponents = async (req: Request<{ id: number }>, res: Response, next: NextFunction) => {
     try {
         const { id } = req.params;
-        const components = await productService.getProductComponents(id);
+        const components = await productServiceInstance.getProductComponents(id);
 
         return res.status(200).json({
             success: true,
@@ -171,12 +179,16 @@ export const getProductComponents = async (req: Request<{ id: number }>, res: Re
     }
 };
 
-export const addProductComponent = async (req: Request<{ id: number }, {}, AddProductComponentInput>, res: Response, next: NextFunction) => {
+export const addProductComponent = async (
+    req: Request<{ id: number }, Record<string, never>, AddProductComponentInput>,
+    res: Response,
+    next: NextFunction,
+) => {
     try {
         const { id } = req.params;
-        const componentData = req.body;
+        const { componentId, quantity, unit } = req.body;
 
-        const component = await productService.addProductComponent(id, componentData);
+        const component = await productServiceInstance.addProductComponent(id, componentId, quantity, unit);
 
         return res.status(201).json({
             success: true,
@@ -191,7 +203,7 @@ export const removeProductComponent = async (req: Request<{ id: number; componen
     try {
         const { id, componentId } = req.params;
 
-        await productService.removeProductComponent(id, componentId);
+        await productServiceInstance.removeProductComponent(id, componentId);
 
         return res.status(200).json({
             success: true,
@@ -203,7 +215,7 @@ export const removeProductComponent = async (req: Request<{ id: number; componen
 };
 
 export const addProductImage = async (
-    req: Request<{ id: number }, {}, { imageUrl: string; isDefault?: boolean }>,
+    req: Request<{ id: number }, Record<string, never>, { imageUrl: string; isDefault?: boolean }>,
     res: Response,
     next: NextFunction,
 ) => {
@@ -211,7 +223,7 @@ export const addProductImage = async (
         const { id } = req.params;
         const { imageUrl, isDefault = false } = req.body;
 
-        const product = await productService.updateProductImage(id, imageUrl, isDefault);
+        const product = await productServiceInstance.updateProductImage(id, imageUrl, isDefault);
 
         return res.status(201).json({
             success: true,
