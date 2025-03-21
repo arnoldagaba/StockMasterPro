@@ -1,5 +1,4 @@
 import { PrismaClient, Customer, Prisma } from "@prisma/client";
-import { prisma } from "../utils/prisma";
 import { ApiError } from "../utils/apiError";
 import { CreateCustomerInput, UpdateCustomerInput } from "../validators/customer.validator";
 import { PaginationParams, SearchFilter, ICustomerService } from "./interfaces";
@@ -17,7 +16,7 @@ export class CustomerService extends BaseServiceImpl<Customer, Prisma.CustomerCr
                     email: {
                         equals: email,
                         mode: "insensitive",
-                    },
+                    } as Prisma.StringNullableFilter<"Customer">,
                 },
             });
 
@@ -35,7 +34,7 @@ export class CustomerService extends BaseServiceImpl<Customer, Prisma.CustomerCr
                     phone: {
                         equals: phone,
                         mode: "insensitive",
-                    },
+                    } as Prisma.StringNullableFilter<"Customer">,
                 },
             });
 
@@ -46,7 +45,9 @@ export class CustomerService extends BaseServiceImpl<Customer, Prisma.CustomerCr
         }
     }
 
-    async getCustomerWithOrders(customerId: number): Promise<Customer & { orders: any[] }> {
+    async getCustomerWithOrders(
+        customerId: number,
+    ): Promise<Customer & { orders: Prisma.OrderGetPayload<{ include: { orderItems: { include: { product: true } } } }>[] }> {
         try {
             const customer = await this.prisma.customer.findUnique({
                 where: {
@@ -86,7 +87,7 @@ export class CustomerService extends BaseServiceImpl<Customer, Prisma.CustomerCr
                         email: {
                             equals: customerData.email,
                             mode: "insensitive",
-                        },
+                        } as Prisma.StringNullableFilter<"Customer">,
                     },
                 });
 
@@ -102,7 +103,7 @@ export class CustomerService extends BaseServiceImpl<Customer, Prisma.CustomerCr
                         phone: {
                             equals: customerData.phone,
                             mode: "insensitive",
-                        },
+                        } as Prisma.StringNullableFilter<"Customer">,
                     },
                 });
 
@@ -141,7 +142,7 @@ export class CustomerService extends BaseServiceImpl<Customer, Prisma.CustomerCr
                         email: {
                             equals: customerData.email,
                             mode: "insensitive",
-                        },
+                        } as Prisma.StringNullableFilter<"Customer">,
                         id: {
                             not: id,
                         },
@@ -160,7 +161,7 @@ export class CustomerService extends BaseServiceImpl<Customer, Prisma.CustomerCr
                         phone: {
                             equals: customerData.phone,
                             mode: "insensitive",
-                        },
+                        } as Prisma.StringNullableFilter<"Customer">,
                         id: {
                             not: id,
                         },
@@ -175,7 +176,13 @@ export class CustomerService extends BaseServiceImpl<Customer, Prisma.CustomerCr
             // Update customer
             const updatedCustomer = await this.prisma.customer.update({
                 where: { id },
-                data: customerData,
+                data: {
+                    name: customerData.name,
+                    email: customerData.email,
+                    phone: customerData.phone,
+                    address: customerData.address,
+                    notes: customerData.notes,
+                },
             });
 
             return updatedCustomer;
@@ -247,30 +254,30 @@ export class CustomerService extends BaseServiceImpl<Customer, Prisma.CustomerCr
             const { page = 1, limit = 10, sortBy = "name", sortOrder = "asc", filters = {} } = params || {};
 
             // Build the where clause
-            const where: any = {};
+            const where: Prisma.CustomerWhereInput = {};
 
             // Add name filter if provided
-            if (filters.name) {
+            if (filters.name && typeof filters.name === "string") {
                 where.name = {
                     contains: filters.name,
                     mode: "insensitive",
-                };
+                } as Prisma.StringFilter<"Customer">;
             }
 
             // Add email filter if provided
-            if (filters.email) {
+            if (filters.email && typeof filters.email === "string") {
                 where.email = {
                     contains: filters.email,
                     mode: "insensitive",
-                };
+                } as Prisma.StringNullableFilter<"Customer">;
             }
 
             // Add phone filter if provided
-            if (filters.phone) {
+            if (filters.phone && typeof filters.phone === "string") {
                 where.phone = {
                     contains: filters.phone,
                     mode: "insensitive",
-                };
+                } as Prisma.StringNullableFilter<"Customer">;
             }
 
             // Count total customers
@@ -293,7 +300,7 @@ export class CustomerService extends BaseServiceImpl<Customer, Prisma.CustomerCr
                 limit,
                 totalPages: Math.ceil(total / limit),
             };
-        } catch (error) {
+        } catch {
             throw new ApiError(500, "Error retrieving customers");
         }
     }
@@ -312,31 +319,31 @@ export class CustomerService extends BaseServiceImpl<Customer, Prisma.CustomerCr
             const { page = 1, limit = 10, sortBy = "name", sortOrder = "asc" } = params || {};
 
             // Build the where clause for search
-            const where: any = {
+            const where: Prisma.CustomerWhereInput = {
                 OR: [
                     {
                         name: {
                             contains: searchTerm,
                             mode: "insensitive",
-                        },
+                        } as Prisma.StringFilter<"Customer">,
                     },
                     {
                         email: {
                             contains: searchTerm,
                             mode: "insensitive",
-                        },
+                        } as Prisma.StringNullableFilter<"Customer">,
                     },
                     {
                         phone: {
                             contains: searchTerm,
                             mode: "insensitive",
-                        },
+                        } as Prisma.StringNullableFilter<"Customer">,
                     },
                     {
                         address: {
                             contains: searchTerm,
                             mode: "insensitive",
-                        },
+                        } as Prisma.StringNullableFilter<"Customer">,
                     },
                 ],
             };
@@ -361,7 +368,7 @@ export class CustomerService extends BaseServiceImpl<Customer, Prisma.CustomerCr
                 limit,
                 totalPages: Math.ceil(total / limit),
             };
-        } catch (error) {
+        } catch {
             throw new ApiError(500, "Error searching customers");
         }
     }

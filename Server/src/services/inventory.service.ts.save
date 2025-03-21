@@ -1,10 +1,14 @@
+^C
 import { PrismaClient, Inventory, InventoryTransaction, Prisma } from "@prisma/client";
 import prisma from "@/config/prisma";
 import { ApiError } from "@/utils/apiError";
 import {
     CreateInventoryInput,
     UpdateInventoryInput,
-} from "@/validators/inventory.validator";
+    AdjustQuantityInput,
+    TransferInventoryInput,
+    ReserveStockInput,
+} from "../validators/inventory.validator";
 import { PaginationParams, SearchFilter, IInventoryService } from "./interfaces";
 import { BaseServiceImpl } from "./base.service";
 
