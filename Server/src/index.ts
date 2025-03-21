@@ -3,7 +3,7 @@ import cors from "cors";
 import helmet from "helmet";
 import swaggerUi from "swagger-ui-express";
 import swaggerSpec from "./config/swagger";
-import userRoutes from "./routes/user.routes";
+import userRoutes from "@/routes/user.routes"
 import { notFoundHandler, basicLimiter } from "./middleware";
 import { errorHandler } from "./middleware/error.middleware";
 
@@ -26,11 +26,6 @@ app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.get("/api-docs.json", (req, res) => {
     res.setHeader("Content-Type", "application/json");
     res.send(swaggerSpec);
-});
-
-// Health check endpoint
-app.get("/health", (req: Request, res: Response) => {
-    res.status(200).json({ status: "OK", timestamp: new Date() });
 });
 
 // API Routes

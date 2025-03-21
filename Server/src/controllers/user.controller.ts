@@ -9,7 +9,7 @@ export const createUser = async (req: Request<Record<string, never>, Record<stri
             ...userData,
             role: { connect: { id: userData.roleId } },
         });
-        res.status(201).json({
+        return res.status(201).json({
             success: true,
             data: user,
         });
@@ -23,7 +23,7 @@ export const updateUser = async (req: Request<{ id: number }, Record<string, nev
         const { id } = req.params;
         const userData = req.body;
         const user = await userServiceInstance.update(id, userData);
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             data: user,
         });
@@ -36,7 +36,7 @@ export const deleteUser = async (req: Request<{ id: number }>, res: Response, ne
     try {
         const { id } = req.params;
         await userServiceInstance.delete(id);
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             message: "User deleted successfully",
         });
@@ -49,7 +49,7 @@ export const getUserById = async (req: Request<{ id: number }>, res: Response, n
     try {
         const { id } = req.params;
         const user = await userServiceInstance.findById(id);
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             data: user,
         });
@@ -61,7 +61,7 @@ export const getUserById = async (req: Request<{ id: number }>, res: Response, n
 export const getAllUsers = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const users = await userServiceInstance.findAll();
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             data: users,
         });
@@ -74,23 +74,22 @@ export const login = async (req: Request<Record<string, never>, Record<string, n
     try {
         const { email, password } = req.body;
         const user = await userServiceInstance.validateCredentials(email, password);
-
+        
         if (!user) {
-            res.status(401).json({
+            return res.status(401).json({
                 success: false,
                 message: "Invalid email or password",
             });
-            return;
         }
-
+        
         // Get client info for session
         const ipAddress = req.ip;
         const userAgent = req.headers["user-agent"];
-
+        
         // Create session and get tokens
         const sessionData = await userServiceInstance.createSession(user.id, ipAddress, userAgent);
-
-        res.status(200).json({
+        
+        return res.status(200).json({
             success: true,
             data: sessionData,
         });
@@ -107,7 +106,7 @@ export const refreshToken = async (
     try {
         const { refreshToken } = req.body;
         const result = await userServiceInstance.refreshToken(refreshToken);
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             data: result,
         });
@@ -121,7 +120,7 @@ export const changePassword = async (req: Request<{ id: number }, Record<string,
         const { id } = req.params;
         const { currentPassword, newPassword } = req.body;
         await userServiceInstance.updatePassword(id, currentPassword, newPassword);
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             message: "Password changed successfully",
         });
@@ -133,17 +132,16 @@ export const changePassword = async (req: Request<{ id: number }, Record<string,
 export const getUserProfile = async (req: Request, res: Response, next: NextFunction) => {
     try {
         if (!req.user) {
-            res.status(401).json({
+            return res.status(401).json({
                 success: false,
                 message: "Unauthorized",
             });
-            return;
         }
 
         const userId = req.user.userId;
         const user = await userServiceInstance.findById(userId);
 
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             data: user,
         });
