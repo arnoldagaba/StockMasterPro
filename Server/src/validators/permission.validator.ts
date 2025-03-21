@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { PermissionType } from "@prisma/client";
 
 export const createPermissionSchema = z.object({
     body: z.object({
