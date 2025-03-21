@@ -1,15 +1,26 @@
 import { PrismaClient, Inventory, InventoryTransaction, Prisma } from "@prisma/client";
-import { prisma } from "../utils/prisma";
-import { ApiError } from "../utils/apiError";
+import prisma from "@/config/prisma";
+import { ApiError } from "@/utils/apiError";
 import {
     CreateInventoryInput,
     UpdateInventoryInput,
-    AdjustQuantityInput,
-    TransferInventoryInput,
-    ReserveStockInput,
 } from "../validators/inventory.validator";
 import { PaginationParams, SearchFilter, IInventoryService } from "./interfaces";
 import { BaseServiceImpl } from "./base.service";
+
+// Define interface for low stock items
+interface LowStockItem {
+    product: {
+        id: number;
+        name: string;
+        reorderPoint: number;
+        inventoryItems: Inventory[];
+    };
+    locations: Inventory[];
+    totalQuantity: number;
+    threshold: number;
+    deficit: number;
+}
 
 export class InventoryService
     extends BaseServiceImpl<Inventory, Prisma.InventoryCreateInput, Prisma.InventoryUpdateInput>
@@ -201,7 +212,7 @@ export class InventoryService
                 });
 
                 // Find or create destination inventory
-                let destInventory = await tx.inventory.findUnique({
+                const destInventory = await tx.inventory.findUnique({
                     where: {
                         unique_product_location: {
                             productId,
@@ -440,7 +451,7 @@ export class InventoryService
         try {
             // Verify product exists
             const product = await prisma.product.findUnique({
-                where: { id: inventoryData.productId },
+                where: { id: Number(inventoryData.productId) },
             });
 
             if (!product) {
@@ -449,7 +460,7 @@ export class InventoryService
 
             // Verify location exists
             const location = await prisma.location.findUnique({
-                where: { id: inventoryData.locationId },
+                where: { id: Number(inventoryData.locationId) },
             });
 
             if (!location) {
@@ -460,8 +471,8 @@ export class InventoryService
             const existingInventory = await prisma.inventory.findUnique({
                 where: {
                     unique_product_location: {
-                        productId: inventoryData.productId,
-                        locationId: inventoryData.locationId,
+                        productId: Number(inventoryData.productId),
+                        locationId: Number(inventoryData.locationId),
                     },
                 },
             });
@@ -475,7 +486,11 @@ export class InventoryService
 
             // Create inventory record
             const inventory = await prisma.inventory.create({
-                data: inventoryData,
+                data: {
+                    ...inventoryData,
+                    productId: Number(inventoryData.productId),
+                    locationId: Number(inventoryData.locationId),
+                },
             });
 
             return inventory;
@@ -514,7 +529,12 @@ export class InventoryService
             // Update inventory record
             const updatedInventory = await prisma.inventory.update({
                 where: { id },
-                data: inventoryData,
+                data: {
+                    ...inventoryData,
+                    id: undefined,
+                    productId: inventoryData.productId ? Number(inventoryData.productId) : undefined,
+                    locationId: inventoryData.locationId ? Number(inventoryData.locationId) : undefined,
+                },
             });
 
             return updatedInventory;
@@ -587,7 +607,7 @@ export class InventoryService
             const { page = 1, limit = 10, sortBy = "id", sortOrder = "asc", filters = {} } = params || {};
 
             // Build where clause for filtering
-            const where: any = {};
+            const where: Prisma.InventoryWhereInput = {};
 
             // Add product filter if provided
             if (filters.productId) {
@@ -605,7 +625,10 @@ export class InventoryService
             }
 
             if (filters.maxQuantity) {
-                where.quantity = { ...(where.quantity || {}), lte: Number(filters.maxQuantity) };
+                // Create or update quantity filter
+                where.quantity = where.quantity
+                    ? { ...(where.quantity as object), lte: Number(filters.maxQuantity) }
+                    : { lte: Number(filters.maxQuantity) };
             }
 
             // Count total inventory records
@@ -632,7 +655,7 @@ export class InventoryService
                 limit,
                 totalPages: Math.ceil(total / limit),
             };
-        } catch (error) {
+        } catch {
             throw new ApiError(500, "Error retrieving inventory records");
         }
     }
@@ -649,7 +672,7 @@ export class InventoryService
                 },
             });
 
-            const lowStockItems: any[] = [];
+            const lowStockItems: LowStockItem[] = [];
 
             // Check each product's inventory levels
             for (const product of products) {
@@ -669,7 +692,12 @@ export class InventoryService
                 // Check if below threshold
                 if (totalQuantity <= checkThreshold) {
                     lowStockItems.push({
-                        product,
+                        product: {
+                            id: product.id,
+                            name: product.name,
+                            reorderPoint: product.reorderPoint,
+                            inventoryItems,
+                        },
                         locations: inventoryItems,
                         totalQuantity,
                         threshold: checkThreshold,
