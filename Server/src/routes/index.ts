@@ -1,6 +1,5 @@
 import express from "express";
 import healthRouter from "./health.routes";
-import authRouter from "./auth.routes";
 import userRouter from "./user.routes";
 import roleRouter from "./role.routes";
 import permissionRouter from "./permission.routes";
@@ -16,7 +15,6 @@ import purchaseOrderRouter from "./purchaseOrder.routes";
 const router = express.Router();
 
 router.use("/health", healthRouter);
-router.use("/auth", authRouter);
 router.use("/users", userRouter);
 router.use("/roles", roleRouter);
 router.use("/permissions", permissionRouter);
