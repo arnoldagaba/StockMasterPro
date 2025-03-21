@@ -1,6 +1,6 @@
 import { PrismaClient, Customer, Prisma } from "@prisma/client";
-import { ApiError } from "../utils/apiError";
-import { CreateCustomerInput, UpdateCustomerInput } from "../validators/customer.validator";
+import { ApiError } from "@/utils/apiError";
+import { CreateCustomerInput, UpdateCustomerInput } from "@/validators/customer.validator";
 import { PaginationParams, SearchFilter, ICustomerService } from "./interfaces";
 import { BaseServiceImpl } from "./base.service";
 

@@ -1,9 +1,9 @@
 import { PrismaClient, Category, Product, Prisma } from "@prisma/client";
 import { ICategoryService, CategoryHierarchyItem } from "./interfaces";
 import { BaseServiceImpl } from "./base.service";
-import { prisma } from '../utils/prisma';
-import { ApiError } from '../utils/apiError';
-import { CreateCategoryInput, UpdateCategoryInput } from '../validators/category.validator';
+import prisma from "@/config/prisma";
+import { ApiError } from "@/utils/apiError";
+import { CreateCategoryInput, UpdateCategoryInput } from "@/validators/category.validator";
 
 export class CategoryService extends BaseServiceImpl<Category, Prisma.CategoryCreateInput, Prisma.CategoryUpdateInput> implements ICategoryService {
     constructor(prisma: PrismaClient) {
@@ -70,9 +70,6 @@ export class CategoryService extends BaseServiceImpl<Category, Prisma.CategoryCr
             const allCategories = await this.prisma.category.findMany({
                 orderBy: { level: "asc" },
             });
-
-            // Get root level categories (parentId is null)
-            const rootCategories = allCategories.filter((c) => c.parentId === null);
 
             // Build the hierarchy recursively
             const buildHierarchy = (parentId: number | null): CategoryHierarchyItem[] => {
@@ -266,34 +263,34 @@ export class CategoryService extends BaseServiceImpl<Category, Prisma.CategoryCr
     async createCategory(categoryData: CreateCategoryInput) {
         try {
             const category = await prisma.category.create({
-                data: categoryData
+                data: categoryData,
             });
-            
+
             return category;
-        } catch (error) {
-            throw new ApiError(500, 'Error creating category');
+        } catch {
+            throw new ApiError(500, "Error creating category");
         }
     }
 
     async updateCategory(id: number, categoryData: UpdateCategoryInput) {
         try {
             const existingCategory = await prisma.category.findUnique({
-                where: { id }
+                where: { id },
             });
-            
+
             if (!existingCategory) {
-                throw new ApiError(404, 'Category not found');
+                throw new ApiError(404, "Category not found");
             }
-            
+
             const updatedCategory = await prisma.category.update({
                 where: { id },
-                data: categoryData
+                data: categoryData,
             });
-            
+
             return updatedCategory;
         } catch (error) {
             if (error instanceof ApiError) throw error;
-            throw new ApiError(500, 'Error updating category');
+            throw new ApiError(500, "Error updating category");
         }
     }
 
@@ -301,38 +298,38 @@ export class CategoryService extends BaseServiceImpl<Category, Prisma.CategoryCr
         try {
             // Check if there are any subcategories
             const subcategories = await prisma.category.findMany({
-                where: { parentId: id }
+                where: { parentId: id },
             });
-            
+
             if (subcategories.length > 0) {
-                throw new ApiError(400, 'Cannot delete category with subcategories');
+                throw new ApiError(400, "Cannot delete category with subcategories");
             }
-            
+
             // Check if there are any products in this category
             const productsInCategory = await prisma.product.findMany({
-                where: { categoryId: id }
+                where: { categoryId: id },
             });
-            
+
             if (productsInCategory.length > 0) {
-                throw new ApiError(400, 'Cannot delete category with products');
+                throw new ApiError(400, "Cannot delete category with products");
             }
-            
+
             const existingCategory = await prisma.category.findUnique({
-                where: { id }
+                where: { id },
             });
-            
+
             if (!existingCategory) {
-                throw new ApiError(404, 'Category not found');
+                throw new ApiError(404, "Category not found");
             }
-            
+
             await prisma.category.delete({
-                where: { id }
+                where: { id },
             });
-            
+
             return true;
         } catch (error) {
             if (error instanceof ApiError) throw error;
-            throw new ApiError(500, 'Error deleting category');
+            throw new ApiError(500, "Error deleting category");
         }
     }
 
@@ -341,18 +338,18 @@ export class CategoryService extends BaseServiceImpl<Category, Prisma.CategoryCr
             const category = await prisma.category.findUnique({
                 where: { id },
                 include: {
-                    parent: true
-                }
+                    parent: true,
+                },
             });
-            
+
             if (!category) {
-                throw new ApiError(404, 'Category not found');
+                throw new ApiError(404, "Category not found");
             }
-            
+
             return category;
         } catch (error) {
             if (error instanceof ApiError) throw error;
-            throw new ApiError(500, 'Error retrieving category');
+            throw new ApiError(500, "Error retrieving category");
         }
     }
 
@@ -360,13 +357,13 @@ export class CategoryService extends BaseServiceImpl<Category, Prisma.CategoryCr
         try {
             const categories = await prisma.category.findMany({
                 include: {
-                    parent: true
-                }
+                    parent: true,
+                },
             });
-            
+
             return categories;
-        } catch (error) {
-            throw new ApiError(500, 'Error retrieving categories');
+        } catch {
+            throw new ApiError(500, "Error retrieving categories");
         }
     }
 
@@ -374,22 +371,26 @@ export class CategoryService extends BaseServiceImpl<Category, Prisma.CategoryCr
         try {
             // Get all categories
             const allCategories = await prisma.category.findMany();
-            
+
             // Build hierarchy tree
-            const buildTree = (parentId: number | null = null) => {
+            type CategoryWithChildren = Category & { children: CategoryWithChildren[] };
+
+            const buildTree = (parentId: number | null = null): CategoryWithChildren[] => {
                 return allCategories
-                    .filter(category => category.parentId === parentId)
-                    .map(category => ({
-                        ...category,
-                        children: buildTree(category.id)
-                    }));
+                    .filter((category) => category.parentId === parentId)
+                    .map(
+                        (category): CategoryWithChildren => ({
+                            ...category,
+                            children: buildTree(category.id),
+                        }),
+                    );
             };
-            
+
             const hierarchy = buildTree();
-            
+
             return hierarchy;
-        } catch (error) {
-            throw new ApiError(500, 'Error retrieving category hierarchy');
+        } catch {
+            throw new ApiError(500, "Error retrieving category hierarchy");
         }
     }
 
@@ -397,21 +398,21 @@ export class CategoryService extends BaseServiceImpl<Category, Prisma.CategoryCr
         try {
             // Check if parent category exists
             const parentCategory = await prisma.category.findUnique({
-                where: { id: parentId }
+                where: { id: parentId },
             });
-            
+
             if (!parentCategory) {
-                throw new ApiError(404, 'Parent category not found');
+                throw new ApiError(404, "Parent category not found");
             }
-            
+
             const subcategories = await prisma.category.findMany({
-                where: { parentId }
+                where: { parentId },
             });
-            
+
             return subcategories;
         } catch (error) {
             if (error instanceof ApiError) throw error;
-            throw new ApiError(500, 'Error retrieving subcategories');
+            throw new ApiError(500, "Error retrieving subcategories");
         }
     }
 
@@ -420,19 +421,18 @@ export class CategoryService extends BaseServiceImpl<Category, Prisma.CategoryCr
             const category = await prisma.category.findUnique({
                 where: { id },
                 include: {
-                    products: true
-                }
+                    products: true,
+                },
             });
-            
+
             if (!category) {
-                throw new ApiError(404, 'Category not found');
+                throw new ApiError(404, "Category not found");
             }
-            
+
             return category;
         } catch (error) {
             if (error instanceof ApiError) throw error;
-            throw new ApiError(500, 'Error retrieving category with products');
+            throw new ApiError(500, "Error retrieving category with products");
         }
     }
 }
-
