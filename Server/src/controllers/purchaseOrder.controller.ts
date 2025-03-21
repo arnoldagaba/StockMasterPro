@@ -1,11 +1,11 @@
 import { Request, Response } from "express";
-import { purchaseOrderService } from "../services/purchaseOrder.service";
-import { CreatePurchaseOrderInput, UpdatePurchaseOrderInput, ReceiveItemsInput } from "../validators/purchaseOrder.validator";
+import { purchaseOrderServiceInstance } from "@/services";
+import { CreatePurchaseOrderInput, UpdatePurchaseOrderInput, ReceiveItemsInput } from "@/validators/purchaseOrder.validator";
 
 export const createPurchaseOrder = async (req: Request, res: Response) => {
     try {
         const poData: CreatePurchaseOrderInput = req.body;
-        const userId = req.user?.id;
+        const userId = req.user?.userId;
 
         if (!userId) {
             return res.status(401).json({
@@ -14,17 +14,31 @@ export const createPurchaseOrder = async (req: Request, res: Response) => {
             });
         }
 
-        const purchaseOrder = await purchaseOrderService.createPurchaseOrderWithItems(poData, userId);
+        const { purchaseOrderItems } = poData;
+
+        const purchaseOrder = await purchaseOrderServiceInstance.createPurchaseOrderWithItems(
+            {
+                supplier: { connect: { id: poData.supplierId } },
+                expectedDeliveryDate: poData.expectedDeliveryDate,
+                notes: poData.notes,
+                user: { connect: { id: userId } },
+                poNumber: "",
+                total: 0,
+            },
+            purchaseOrderItems || [],
+            userId,
+        );
 
         return res.status(201).json({
             status: "success",
             message: "Purchase order created successfully",
             data: purchaseOrder,
         });
-    } catch (error: any) {
-        return res.status(error.statusCode || 500).json({
+    } catch (error: unknown) {
+        const err = error as Error & { statusCode?: number };
+        return res.status(err.statusCode || 500).json({
             status: "error",
-            message: error.message || "Error creating purchase order",
+            message: err.message || "Error creating purchase order",
         });
     }
 };
@@ -34,17 +48,18 @@ export const updatePurchaseOrder = async (req: Request, res: Response) => {
         const id = Number(req.params.id);
         const poData: UpdatePurchaseOrderInput = req.body;
 
-        const purchaseOrder = await purchaseOrderService.updatePurchaseOrder(id, poData);
+        const purchaseOrder = await purchaseOrderServiceInstance.updatePurchaseOrder(id, poData);
 
         return res.status(200).json({
             status: "success",
             message: "Purchase order updated successfully",
             data: purchaseOrder,
         });
-    } catch (error: any) {
-        return res.status(error.statusCode || 500).json({
+    } catch (error: unknown) {
+        const err = error as Error & { statusCode?: number };
+        return res.status(err.statusCode || 500).json({
             status: "error",
-            message: error.message || "Error updating purchase order",
+            message: err.message || "Error updating purchase order",
         });
     }
 };
@@ -53,7 +68,7 @@ export const updatePurchaseOrderStatus = async (req: Request, res: Response) => 
     try {
         const id = Number(req.params.id);
         const { status } = req.body;
-        const userId = req.user?.id;
+        const userId = req.user?.userId;
 
         if (!userId) {
             return res.status(401).json({
@@ -62,17 +77,18 @@ export const updatePurchaseOrderStatus = async (req: Request, res: Response) => 
             });
         }
 
-        const purchaseOrder = await purchaseOrderService.updateStatus(id, status, userId);
+        const purchaseOrder = await purchaseOrderServiceInstance.updateStatus(id, status);
 
         return res.status(200).json({
             status: "success",
             message: `Purchase order status updated to ${status}`,
             data: purchaseOrder,
         });
-    } catch (error: any) {
-        return res.status(error.statusCode || 500).json({
+    } catch (error: unknown) {
+        const err = error as Error & { statusCode?: number };
+        return res.status(err.statusCode || 500).json({
             status: "error",
-            message: error.message || "Error updating purchase order status",
+            message: err.message || "Error updating purchase order status",
         });
     }
 };
@@ -81,24 +97,8 @@ export const getPurchaseOrderById = async (req: Request, res: Response) => {
     try {
         const id = Number(req.params.id);
 
-        const purchaseOrder = await purchaseOrderService.findById(id, {
-            include: {
-                supplier: true,
-                purchaseOrderItems: {
-                    include: {
-                        product: true,
-                    },
-                },
-                user: {
-                    select: {
-                        id: true,
-                        email: true,
-                        firstName: true,
-                        lastName: true,
-                    },
-                },
-            },
-        });
+        // First get the basic purchase order
+        const purchaseOrder = await purchaseOrderServiceInstance.findById(id);
 
         if (!purchaseOrder) {
             return res.status(404).json({
@@ -107,14 +107,18 @@ export const getPurchaseOrderById = async (req: Request, res: Response) => {
             });
         }
 
+        // Then manually get the related data
+        const purchaseOrderWithDetails = await purchaseOrderServiceInstance.findByPurchaseOrderNumber(purchaseOrder.poNumber);
+
         return res.status(200).json({
             status: "success",
-            data: purchaseOrder,
+            data: purchaseOrderWithDetails,
         });
-    } catch (error: any) {
-        return res.status(error.statusCode || 500).json({
+    } catch (error: unknown) {
+        const err = error as Error & { statusCode?: number };
+        return res.status(err.statusCode || 500).json({
             status: "error",
-            message: error.message || "Error retrieving purchase order",
+            message: err.message || "Error retrieving purchase order",
         });
     }
 };
@@ -123,7 +127,7 @@ export const getPurchaseOrderByNumber = async (req: Request, res: Response) => {
     try {
         const poNumber = req.params.poNumber;
 
-        const purchaseOrder = await purchaseOrderService.findByPurchaseOrderNumber(poNumber);
+        const purchaseOrder = await purchaseOrderServiceInstance.findByPurchaseOrderNumber(poNumber);
 
         if (!purchaseOrder) {
             return res.status(404).json({
@@ -136,10 +140,11 @@ export const getPurchaseOrderByNumber = async (req: Request, res: Response) => {
             status: "success",
             data: purchaseOrder,
         });
-    } catch (error: any) {
-        return res.status(error.statusCode || 500).json({
+    } catch (error: unknown) {
+        const err = error as Error & { statusCode?: number };
+        return res.status(err.statusCode || 500).json({
             status: "error",
-            message: error.message || "Error retrieving purchase order",
+            message: err.message || "Error retrieving purchase order",
         });
     }
 };
@@ -148,7 +153,7 @@ export const getAllPurchaseOrders = async (req: Request, res: Response) => {
     try {
         const { page, limit, sortBy, sortOrder, status, supplierId, startDate, endDate, minTotal, maxTotal } = req.query;
 
-        const filters: any = {};
+        const filters: Record<string, unknown> = {};
 
         if (status) {
             filters.status = status;
@@ -174,7 +179,7 @@ export const getAllPurchaseOrders = async (req: Request, res: Response) => {
             filters.maxTotal = maxTotal;
         }
 
-        const result = await purchaseOrderService.filterPurchaseOrders({
+        const result = await purchaseOrderServiceInstance.filterPurchaseOrders({
             page: page ? Number(page) : undefined,
             limit: limit ? Number(limit) : undefined,
             sortBy: sortBy as string | undefined,
@@ -186,10 +191,11 @@ export const getAllPurchaseOrders = async (req: Request, res: Response) => {
             status: "success",
             ...result,
         });
-    } catch (error: any) {
-        return res.status(error.statusCode || 500).json({
+    } catch (error: unknown) {
+        const err = error as Error & { statusCode?: number };
+        return res.status(err.statusCode || 500).json({
             status: "error",
-            message: error.message || "Error retrieving purchase orders",
+            message: err.message || "Error retrieving purchase orders",
         });
     }
 };
@@ -198,16 +204,17 @@ export const getPurchaseOrdersBySupplier = async (req: Request, res: Response) =
     try {
         const supplierId = Number(req.params.supplierId);
 
-        const purchaseOrders = await purchaseOrderService.findBySupplier(supplierId);
+        const purchaseOrders = await purchaseOrderServiceInstance.findBySupplier(supplierId);
 
         return res.status(200).json({
             status: "success",
             data: purchaseOrders,
         });
-    } catch (error: any) {
-        return res.status(error.statusCode || 500).json({
+    } catch (error: unknown) {
+        const err = error as Error & { statusCode?: number };
+        return res.status(err.statusCode || 500).json({
             status: "error",
-            message: error.message || "Error retrieving supplier purchase orders",
+            message: err.message || "Error retrieving supplier purchase orders",
         });
     }
 };
@@ -216,16 +223,17 @@ export const getPurchaseOrdersByStatus = async (req: Request, res: Response) => 
     try {
         const status = req.params.status;
 
-        const purchaseOrders = await purchaseOrderService.findByStatus(status);
+        const purchaseOrders = await purchaseOrderServiceInstance.findByStatus(status);
 
         return res.status(200).json({
             status: "success",
             data: purchaseOrders,
         });
-    } catch (error: any) {
-        return res.status(error.statusCode || 500).json({
+    } catch (error: unknown) {
+        const err = error as Error & { statusCode?: number };
+        return res.status(err.statusCode || 500).json({
             status: "error",
-            message: error.message || "Error retrieving purchase orders by status",
+            message: err.message || "Error retrieving purchase orders by status",
         });
     }
 };
@@ -237,16 +245,17 @@ export const getPurchaseOrdersByDateRange = async (req: Request, res: Response) 
         const start = new Date(startDate);
         const end = new Date(endDate);
 
-        const purchaseOrders = await purchaseOrderService.findByDateRange(start, end);
+        const purchaseOrders = await purchaseOrderServiceInstance.findByDateRange(start, end);
 
         return res.status(200).json({
             status: "success",
             data: purchaseOrders,
         });
-    } catch (error: any) {
-        return res.status(error.statusCode || 500).json({
+    } catch (error: unknown) {
+        const err = error as Error & { statusCode?: number };
+        return res.status(err.statusCode || 500).json({
             status: "error",
-            message: error.message || "Error retrieving purchase orders by date range",
+            message: err.message || "Error retrieving purchase orders by date range",
         });
     }
 };
@@ -255,16 +264,17 @@ export const calculatePurchaseOrderTotals = async (req: Request, res: Response) 
     try {
         const { items } = req.body;
 
-        const totals = await purchaseOrderService.calculatePurchaseOrderTotals(items);
+        const totals = await purchaseOrderServiceInstance.calculatePurchaseOrderTotals(items);
 
         return res.status(200).json({
             status: "success",
             data: totals,
         });
-    } catch (error: any) {
-        return res.status(error.statusCode || 500).json({
+    } catch (error: unknown) {
+        const err = error as Error & { statusCode?: number };
+        return res.status(err.statusCode || 500).json({
             status: "error",
-            message: error.message || "Error calculating purchase order totals",
+            message: err.message || "Error calculating purchase order totals",
         });
     }
 };
@@ -272,7 +282,7 @@ export const calculatePurchaseOrderTotals = async (req: Request, res: Response) 
 export const receiveItems = async (req: Request, res: Response) => {
     try {
         const receiveData: ReceiveItemsInput = req.body;
-        const userId = req.user?.id;
+        const userId = req.user?.userId;
 
         if (!userId) {
             return res.status(401).json({
@@ -281,17 +291,18 @@ export const receiveItems = async (req: Request, res: Response) => {
             });
         }
 
-        const result = await purchaseOrderService.receiveItems(receiveData, userId);
+        const result = await purchaseOrderServiceInstance.receiveItems(receiveData.purchaseOrderId, receiveData.receivedItems);
 
         return res.status(200).json({
             status: "success",
             message: "Items received successfully",
             data: result,
         });
-    } catch (error: any) {
-        return res.status(error.statusCode || 500).json({
+    } catch (error: unknown) {
+        const err = error as Error & { statusCode?: number };
+        return res.status(err.statusCode || 500).json({
             status: "error",
-            message: error.message || "Error receiving purchase order items",
+            message: err.message || "Error receiving purchase order items",
         });
     }
 };
@@ -302,17 +313,18 @@ export const updateItem = async (req: Request, res: Response) => {
         const itemId = Number(req.params.itemId);
         const updates = req.body;
 
-        const updatedItem = await purchaseOrderService.updateItem(purchaseOrderId, itemId, updates);
+        const updatedItem = await purchaseOrderServiceInstance.updateItem(purchaseOrderId, itemId, updates);
 
         return res.status(200).json({
             status: "success",
             message: "Item updated successfully",
             data: updatedItem,
         });
-    } catch (error: any) {
-        return res.status(error.statusCode || 500).json({
+    } catch (error: unknown) {
+        const err = error as Error & { statusCode?: number };
+        return res.status(err.statusCode || 500).json({
             status: "error",
-            message: error.message || "Error updating purchase order item",
+            message: err.message || "Error updating purchase order item",
         });
     }
 };
@@ -322,17 +334,18 @@ export const addItem = async (req: Request, res: Response) => {
         const purchaseOrderId = Number(req.params.id);
         const itemData = req.body;
 
-        const newItem = await purchaseOrderService.addItem(purchaseOrderId, itemData);
+        const newItem = await purchaseOrderServiceInstance.addItem(purchaseOrderId, itemData);
 
         return res.status(201).json({
             status: "success",
             message: "Item added successfully",
             data: newItem,
         });
-    } catch (error: any) {
-        return res.status(error.statusCode || 500).json({
+    } catch (error: unknown) {
+        const err = error as Error & { statusCode?: number };
+        return res.status(err.statusCode || 500).json({
             status: "error",
-            message: error.message || "Error adding item to purchase order",
+            message: err.message || "Error adding item to purchase order",
         });
     }
 };
@@ -342,16 +355,17 @@ export const removeItem = async (req: Request, res: Response) => {
         const purchaseOrderId = Number(req.params.id);
         const itemId = Number(req.params.itemId);
 
-        await purchaseOrderService.removeItem(purchaseOrderId, itemId);
+        await purchaseOrderServiceInstance.removeItem(purchaseOrderId, itemId);
 
         return res.status(200).json({
             status: "success",
             message: "Item removed successfully",
         });
-    } catch (error: any) {
-        return res.status(error.statusCode || 500).json({
+    } catch (error: unknown) {
+        const err = error as Error & { statusCode?: number };
+        return res.status(err.statusCode || 500).json({
             status: "error",
-            message: error.message || "Error removing item from purchase order",
+            message: err.message || "Error removing item from purchase order",
         });
     }
 };
