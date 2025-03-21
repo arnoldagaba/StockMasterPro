@@ -1,11 +1,14 @@
 import { Request, Response, NextFunction } from "express";
-import { userService } from "../services";
-import { CreateUserInput, UpdateUserInput, LoginInput, ChangePasswordInput, RefreshTokenInput } from "../validators/user.validator";
+import { userServiceInstance } from "@/services";
+import { CreateUserInput, UpdateUserInput, LoginInput, ChangePasswordInput, RefreshTokenInput } from "@/validators/user.validator";
 
-export const createUser = async (req: Request<{}, {}, CreateUserInput>, res: Response, next: NextFunction) => {
+export const createUser = async (req: Request<Record<string, never>, Record<string, never>, CreateUserInput>, res: Response, next: NextFunction) => {
     try {
         const userData = req.body;
-        const user = await userService.createUser(userData);
+        const user = await userServiceInstance.create({
+            ...userData,
+            role: { connect: { id: userData.roleId } },
+        });
         return res.status(201).json({
             success: true,
             data: user,
@@ -15,11 +18,11 @@ export const createUser = async (req: Request<{}, {}, CreateUserInput>, res: Res
     }
 };
 
-export const updateUser = async (req: Request<{ id: number }, {}, UpdateUserInput>, res: Response, next: NextFunction) => {
+export const updateUser = async (req: Request<{ id: number }, Record<string, never>, UpdateUserInput>, res: Response, next: NextFunction) => {
     try {
         const { id } = req.params;
         const userData = req.body;
-        const user = await userService.updateUser(id, userData);
+        const user = await userServiceInstance.update(id, userData);
         return res.status(200).json({
             success: true,
             data: user,
@@ -32,7 +35,7 @@ export const updateUser = async (req: Request<{ id: number }, {}, UpdateUserInpu
 export const deleteUser = async (req: Request<{ id: number }>, res: Response, next: NextFunction) => {
     try {
         const { id } = req.params;
-        await userService.deleteUser(id);
+        await userServiceInstance.delete(id);
         return res.status(200).json({
             success: true,
             message: "User deleted successfully",
@@ -45,7 +48,7 @@ export const deleteUser = async (req: Request<{ id: number }>, res: Response, ne
 export const getUserById = async (req: Request<{ id: number }>, res: Response, next: NextFunction) => {
     try {
         const { id } = req.params;
-        const user = await userService.getUserById(id);
+        const user = await userServiceInstance.findById(id);
         return res.status(200).json({
             success: true,
             data: user,
@@ -57,7 +60,7 @@ export const getUserById = async (req: Request<{ id: number }>, res: Response, n
 
 export const getAllUsers = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const users = await userService.getAllUsers();
+        const users = await userServiceInstance.findAll();
         return res.status(200).json({
             success: true,
             data: users,
@@ -67,10 +70,10 @@ export const getAllUsers = async (req: Request, res: Response, next: NextFunctio
     }
 };
 
-export const login = async (req: Request<{}, {}, LoginInput>, res: Response, next: NextFunction) => {
+export const login = async (req: Request<Record<string, never>, Record<string, never>, LoginInput>, res: Response, next: NextFunction) => {
     try {
         const { email, password } = req.body;
-        const result = await userService.login(email, password);
+        const result = await userServiceInstance.validateCredentials(email, password);
         return res.status(200).json({
             success: true,
             data: result,
@@ -80,10 +83,14 @@ export const login = async (req: Request<{}, {}, LoginInput>, res: Response, nex
     }
 };
 
-export const refreshToken = async (req: Request<{}, {}, RefreshTokenInput>, res: Response, next: NextFunction) => {
+export const refreshToken = async (
+    req: Request<Record<string, never>, Record<string, never>, RefreshTokenInput>,
+    res: Response,
+    next: NextFunction,
+) => {
     try {
         const { refreshToken } = req.body;
-        const result = await userService.refreshToken(refreshToken);
+        const result = await userServiceInstance.refreshToken(refreshToken);
         return res.status(200).json({
             success: true,
             data: result,
@@ -93,11 +100,11 @@ export const refreshToken = async (req: Request<{}, {}, RefreshTokenInput>, res:
     }
 };
 
-export const changePassword = async (req: Request<{ id: number }, {}, ChangePasswordInput>, res: Response, next: NextFunction) => {
+export const changePassword = async (req: Request<{ id: number }, Record<string, never>, ChangePasswordInput>, res: Response, next: NextFunction) => {
     try {
         const { id } = req.params;
         const { currentPassword, newPassword } = req.body;
-        await userService.changePassword(id, currentPassword, newPassword);
+        await userServiceInstance.updatePassword(id, currentPassword, newPassword);
         return res.status(200).json({
             success: true,
             message: "Password changed successfully",
@@ -117,7 +124,7 @@ export const getUserProfile = async (req: Request, res: Response, next: NextFunc
         }
 
         const userId = req.user.userId;
-        const user = await userService.getUserById(userId);
+        const user = await userServiceInstance.findById(userId);
 
         return res.status(200).json({
             success: true,
