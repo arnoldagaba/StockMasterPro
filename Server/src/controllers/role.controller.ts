@@ -1,11 +1,12 @@
 import { Request, Response, NextFunction } from "express";
-import { roleService } from "../services";
-import { CreateRoleInput, UpdateRoleInput, AssignPermissionsInput } from "../validators/role.validator";
+import { roleServiceInstance } from "@/services";
+import { CreateRoleInput, UpdateRoleInput, AssignPermissionsInput } from "@/validators/role.validator";
+import prisma from "@/config/prisma";
 
-export const createRole = async (req: Request<{}, {}, CreateRoleInput>, res: Response, next: NextFunction) => {
+export const createRole = async (req: Request<Record<string, never>, Record<string, never>, CreateRoleInput>, res: Response, next: NextFunction) => {
     try {
         const roleData = req.body;
-        const role = await roleService.createRole(roleData);
+        const role = await roleServiceInstance.create(roleData);
         return res.status(201).json({
             success: true,
             data: role,
@@ -15,11 +16,11 @@ export const createRole = async (req: Request<{}, {}, CreateRoleInput>, res: Res
     }
 };
 
-export const updateRole = async (req: Request<{ id: number }, {}, UpdateRoleInput>, res: Response, next: NextFunction) => {
+export const updateRole = async (req: Request<{ id: number }, Record<string, never>, UpdateRoleInput>, res: Response, next: NextFunction) => {
     try {
         const { id } = req.params;
         const roleData = req.body;
-        const role = await roleService.updateRole(id, roleData);
+        const role = await roleServiceInstance.update(id, roleData);
         return res.status(200).json({
             success: true,
             data: role,
@@ -32,7 +33,7 @@ export const updateRole = async (req: Request<{ id: number }, {}, UpdateRoleInpu
 export const deleteRole = async (req: Request<{ id: number }>, res: Response, next: NextFunction) => {
     try {
         const { id } = req.params;
-        await roleService.deleteRole(id);
+        await roleServiceInstance.delete(id);
         return res.status(200).json({
             success: true,
             message: "Role deleted successfully",
@@ -45,7 +46,7 @@ export const deleteRole = async (req: Request<{ id: number }>, res: Response, ne
 export const getRoleById = async (req: Request<{ id: number }>, res: Response, next: NextFunction) => {
     try {
         const { id } = req.params;
-        const role = await roleService.getRoleById(id);
+        const role = await roleServiceInstance.findById(id);
         return res.status(200).json({
             success: true,
             data: role,
@@ -57,7 +58,7 @@ export const getRoleById = async (req: Request<{ id: number }>, res: Response, n
 
 export const getAllRoles = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const roles = await roleService.getAllRoles();
+        const roles = await roleServiceInstance.findAll();
         return res.status(200).json({
             success: true,
             data: roles,
@@ -67,11 +68,15 @@ export const getAllRoles = async (req: Request, res: Response, next: NextFunctio
     }
 };
 
-export const assignPermissionsToRole = async (req: Request<{ id: number }, {}, AssignPermissionsInput>, res: Response, next: NextFunction) => {
+export const assignPermissionsToRole = async (
+    req: Request<{ id: number }, Record<string, never>, AssignPermissionsInput>,
+    res: Response,
+    next: NextFunction,
+) => {
     try {
         const { id } = req.params;
         const { permissionIds } = req.body;
-        const role = await roleService.assignPermissionsToRole(id, permissionIds);
+        const role = await roleServiceInstance.assignPermissions(id, permissionIds);
         return res.status(200).json({
             success: true,
             data: role,
@@ -85,10 +90,19 @@ export const assignPermissionsToRole = async (req: Request<{ id: number }, {}, A
 export const getRolePermissions = async (req: Request<{ id: number }>, res: Response, next: NextFunction) => {
     try {
         const { id } = req.params;
-        const permissions = await roleService.getRolePermissions(id);
+
+        // Get role permissions using prisma directly
+        const permissions = await prisma.rolePermission.findMany({
+            where: { roleId: id },
+            include: { permission: true },
+        });
+
+        // Map to just the permission objects
+        const permissionData = permissions.map((rp) => rp.permission);
+
         return res.status(200).json({
             success: true,
-            data: permissions,
+            data: permissionData,
         });
     } catch (error) {
         next(error);
