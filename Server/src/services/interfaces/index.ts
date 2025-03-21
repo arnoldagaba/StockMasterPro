@@ -151,8 +151,9 @@ export interface IPurchaseOrderService extends BaseService<PurchaseOrder, Prisma
     findByStatus(status: string): Promise<PurchaseOrder[]>;
     createPurchaseOrderWithItems(
         data: Prisma.PurchaseOrderCreateInput,
-        items: Prisma.PurchaseOrderItemCreateInput[],
-    ): Promise<PurchaseOrder & { purchaseOrderItems: PurchaseOrderItem[] }>;
+        items: { productId: number; quantityOrdered: number; unitCost: number }[],
+        userId: number,
+    ): Promise<PurchaseOrder>;
     updatePurchaseOrder(id: number, poData: UpdatePurchaseOrderInput): Promise<PurchaseOrder>;
     updateStatus(poId: number, status: string, userId?: number): Promise<PurchaseOrder>;
     receiveItems(poId: number, receivedItems: { itemId: number; quantityReceived: number }[]): Promise<PurchaseOrderItem[]>;

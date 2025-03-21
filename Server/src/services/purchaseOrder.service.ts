@@ -1,7 +1,6 @@
 import { PrismaClient, PurchaseOrder, PurchaseOrderItem, PurchaseOrderStatus, Prisma } from "@prisma/client";
-import prisma from "@/config/prisma";
 import { ApiError } from "@/utils/apiError";
-import { CreatePurchaseOrderInput, UpdatePurchaseOrderInput, ReceiveItemsInput } from "../validators/purchaseOrder.validator";
+import { UpdatePurchaseOrderInput } from "../validators/purchaseOrder.validator";
 import { PaginationParams, SearchFilter, IPurchaseOrderService } from "./interfaces";
 import { BaseServiceImpl } from "./base.service";
 import { generatePurchaseOrderNumber } from "../utils/generators";
@@ -108,7 +107,8 @@ export class PurchaseOrderService
 
     async createPurchaseOrderWithItems(
         data: Prisma.PurchaseOrderCreateInput,
-        items: Prisma.PurchaseOrderItemCreateInput[],
+        items: { productId: number; quantityOrdered: number; unitCost: number }[],
+        userId: number,
     ): Promise<PurchaseOrder & { purchaseOrderItems: PurchaseOrderItem[] }> {
         try {
             // Check if supplier exists
@@ -182,6 +182,8 @@ export class PurchaseOrderService
                     status: "DRAFT",
                     expectedDeliveryDate: data.expectedDeliveryDate,
                     notes: data.notes,
+                    userId: userId,
+                    total,
                     purchaseOrderItems: {
                         create: purchaseOrderItems,
                     },
@@ -201,7 +203,19 @@ export class PurchaseOrderService
                 WHERE id = ${purchaseOrder.id}
             `;
 
-            return purchaseOrder;
+            // Fetch the updated PO with items to ensure correct return type
+            const updatedPurchaseOrder = await this.prisma.purchaseOrder.findUnique({
+                where: { id: purchaseOrder.id },
+                include: {
+                    purchaseOrderItems: true,
+                },
+            });
+
+            if (!updatedPurchaseOrder) {
+                throw new ApiError(500, "Failed to retrieve updated purchase order");
+            }
+
+            return updatedPurchaseOrder as PurchaseOrder & { purchaseOrderItems: PurchaseOrderItem[] };
         } catch (error) {
             if (error instanceof ApiError) throw error;
             this.handleError(error, "Error creating purchase order");

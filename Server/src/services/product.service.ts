@@ -1,353 +1,13 @@
-import { PrismaClient, Product, Inventory, ProductComponent, Prisma } from "@prisma/client";
+import { PrismaClient, Product, Prisma, Inventory, ProductComponent } from "@prisma/client";
 import { IProductService, PaginationParams, SearchFilter } from "./interfaces";
 import { BaseServiceImpl } from "./base.service";
-import { prisma } from "../utils/prisma";
-import { ApiError } from "../utils/apiError";
-import { CreateProductInput, UpdateProductInput, AddProductComponentInput } from "../validators/product.validator";
+import prisma from "@/config/prisma";
+import { ApiError } from "@/utils/apiError";
+import { CreateProductInput, UpdateProductInput } from "@/validators/product.validator";
 
 export class ProductService extends BaseServiceImpl<Product, Prisma.ProductCreateInput, Prisma.ProductUpdateInput> implements IProductService {
     constructor(prisma: PrismaClient) {
         super(prisma, "product");
-    }
-
-    /**
-     * Find a product by SKU
-     */
-    async findBySku(sku: string): Promise<Product | null> {
-        try {
-            const product = await this.prisma.product.findFirst({
-                where: {
-                    sku,
-                    deletedAt: null,
-                },
-            });
-            return product;
-        } catch (error) {
-            this.handleError(error, `Error finding product by SKU: ${sku}`);
-            throw error;
-        }
-    }
-
-    /**
-     * Find products by category with pagination and filtering
-     */
-    async findByCategory(
-        categoryId: number,
-        params?: PaginationParams & SearchFilter,
-    ): Promise<{ data: Product[]; total: number; page: number; limit: number }> {
-        try {
-            const { page = 1, limit = 10, sortBy = "id", sortOrder = "desc", searchTerm = "", filters = {} } = params || {};
-
-            // Convert string values to numbers
-            const pageNum = Number(page);
-            const limitNum = Number(limit);
-            const skip = (pageNum - 1) * limitNum;
-
-            // Build where clause based on filter and search term
-            const where: Record<string, unknown> = {
-                ...filters,
-                categoryId,
-                deletedAt: null,
-            };
-
-            // Add search functionality if searchTerm is provided
-            if (searchTerm) {
-                where.OR = [{ name: { contains: searchTerm } }, { sku: { contains: searchTerm } }, { description: { contains: searchTerm } }];
-            }
-
-            // Get total count
-            const total = await this.prisma.product.count({ where });
-
-            // Get paginated data
-            const data = await this.prisma.product.findMany({
-                where,
-                skip,
-                take: limitNum,
-                orderBy: { [sortBy]: sortOrder },
-            });
-
-            return {
-                data,
-                total,
-                page: pageNum,
-                limit: limitNum,
-            };
-        } catch (error) {
-            this.handleError(error, `Error finding products for category ID: ${categoryId}`);
-            throw error;
-        }
-    }
-
-    /**
-     * Update the stock of a product at a location
-     */
-    async updateStock(productId: number, locationId: number, quantity: number): Promise<Inventory> {
-        try {
-            // Check if product exists
-            const product = await this.prisma.product.findUnique({
-                where: { id: productId },
-            });
-
-            if (!product) {
-                throw new Error(`Product with ID ${productId} not found`);
-            }
-
-            // Check if location exists
-            const location = await this.prisma.location.findUnique({
-                where: { id: locationId },
-            });
-
-            if (!location) {
-                throw new Error(`Location with ID ${locationId} not found`);
-            }
-
-            // Find existing inventory item or create a new one
-            let inventory = await this.prisma.inventory.findFirst({
-                where: {
-                    productId,
-                    locationId,
-                },
-            });
-
-            if (inventory) {
-                // Update existing inventory
-                inventory = await this.prisma.inventory.update({
-                    where: { id: inventory.id },
-                    data: { quantity },
-                });
-            } else {
-                // Create new inventory item
-                inventory = await this.prisma.inventory.create({
-                    data: {
-                        productId,
-                        locationId,
-                        quantity,
-                        reservedQuantity: 0,
-                    },
-                });
-            }
-
-            return inventory;
-        } catch (error) {
-            this.handleError(error, `Error updating stock for product ID ${productId} at location ID ${locationId}`);
-            throw error;
-        }
-    }
-
-    /**
-     * Get a product with all its inventory
-     */
-    async getProductWithInventory(productId: number): Promise<Product & { inventory: Inventory[] }> {
-        try {
-            const product = await this.prisma.product.findUnique({
-                where: {
-                    id: productId,
-                    deletedAt: null,
-                },
-                include: { inventoryItems: true },
-            });
-
-            if (!product) {
-                throw new Error(`Product with ID ${productId} not found`);
-            }
-
-            return {
-                ...product,
-                inventory: product.inventoryItems,
-            };
-        } catch (error) {
-            this.handleError(error, `Error getting product with inventory for ID: ${productId}`);
-            throw error;
-        }
-    }
-
-    /**
-     * Get all components of a product
-     */
-    async getProductComponents(productId: number): Promise<ProductComponent[]> {
-        try {
-            // Check if product exists
-            const product = await this.prisma.product.findUnique({
-                where: {
-                    id: productId,
-                    deletedAt: null,
-                },
-            });
-
-            if (!product) {
-                throw new Error(`Product with ID ${productId} not found`);
-            }
-
-            // Get components
-            const components = await this.prisma.productComponent.findMany({
-                where: { productId },
-                include: { component: true },
-            });
-
-            return components;
-        } catch (error) {
-            this.handleError(error, `Error getting components for product ID: ${productId}`);
-            throw error;
-        }
-    }
-
-    /**
-     * Add a component to a product
-     */
-    async addProductComponent(productId: number, componentId: number, quantity: number, unit?: string): Promise<ProductComponent> {
-        try {
-            // Check if product exists
-            const product = await this.prisma.product.findUnique({
-                where: {
-                    id: productId,
-                    deletedAt: null,
-                },
-            });
-
-            if (!product) {
-                throw new Error(`Product with ID ${productId} not found`);
-            }
-
-            // Check if component exists
-            const component = await this.prisma.product.findUnique({
-                where: {
-                    id: componentId,
-                    deletedAt: null,
-                },
-            });
-
-            if (!component) {
-                throw new Error(`Component with ID ${componentId} not found`);
-            }
-
-            // Prevent circular dependencies
-            if (productId === componentId) {
-                throw new Error("A product cannot be a component of itself");
-            }
-
-            // Check if component is already added to prevent duplicates
-            const existingComponent = await this.prisma.productComponent.findFirst({
-                where: {
-                    productId,
-                    componentId,
-                },
-            });
-
-            if (existingComponent) {
-                // Update existing component quantity
-                return await this.prisma.productComponent.update({
-                    where: { id: existingComponent.id },
-                    data: {
-                        quantity: new Prisma.Decimal(quantity),
-                        unit,
-                    },
-                });
-            } else {
-                // Add new component
-                return await this.prisma.productComponent.create({
-                    data: {
-                        productId,
-                        componentId,
-                        quantity: new Prisma.Decimal(quantity),
-                        unit,
-                    },
-                });
-            }
-        } catch (error) {
-            this.handleError(error, `Error adding component ${componentId} to product ${productId}`);
-            throw error;
-        }
-    }
-
-    /**
-     * Remove a component from a product
-     */
-    async removeProductComponent(productId: number, componentId: number): Promise<boolean> {
-        try {
-            // Check if the component relation exists
-            const component = await this.prisma.productComponent.findFirst({
-                where: {
-                    productId,
-                    componentId,
-                },
-            });
-
-            if (!component) {
-                throw new Error(`Component ${componentId} is not part of product ${productId}`);
-            }
-
-            // Delete the component relation
-            await this.prisma.productComponent.delete({
-                where: { id: component.id },
-            });
-
-            return true;
-        } catch (error) {
-            this.handleError(error, `Error removing component ${componentId} from product ${productId}`);
-            throw error;
-        }
-    }
-
-    /**
-     * Update product image
-     */
-    async updateProductImage(productId: number, imageUrl: string, isDefault: boolean = false): Promise<Product> {
-        try {
-            // Check if product exists
-            const product = await this.prisma.product.findUnique({
-                where: {
-                    id: productId,
-                    deletedAt: null,
-                },
-            });
-
-            if (!product) {
-                throw new Error(`Product with ID ${productId} not found`);
-            }
-
-            // Get existing images
-            const existingImages = await this.prisma.productImage.findMany({
-                where: { productId },
-            });
-
-            // If this is the default image, unset default flag on other images
-            if (isDefault) {
-                await Promise.all(
-                    existingImages
-                        .filter((img) => img.isDefault)
-                        .map((img) =>
-                            this.prisma.productImage.update({
-                                where: { id: img.id },
-                                data: { isDefault: false },
-                            }),
-                        ),
-                );
-            }
-
-            // Calculate sort order (last position by default)
-            const sortOrder = existingImages.length > 0 ? Math.max(...existingImages.map((img) => img.sortOrder)) + 1 : 0;
-
-            // Create the new image
-            await this.prisma.productImage.create({
-                data: {
-                    productId,
-                    url: imageUrl,
-                    isDefault,
-                    sortOrder,
-                },
-            });
-
-            // Get the updated product with images
-            const updatedProduct = await this.prisma.product.findUnique({
-                where: { id: productId },
-                include: { image: true },
-            });
-
-            return updatedProduct as Product;
-        } catch (error) {
-            this.handleError(error, `Error updating image for product ID: ${productId}`);
-            throw error;
-        }
     }
 
     /**
@@ -539,7 +199,7 @@ export class ProductService extends BaseServiceImpl<Product, Prisma.ProductCreat
             const { page = 1, limit = 10, sortBy = "createdAt", sortOrder = "desc", searchTerm = "", filters = {} } = params || {};
 
             // Build where clause based on search term and filters
-            const where: any = {
+            const where: Prisma.ProductWhereInput = {
                 deletedAt: null,
             };
 
@@ -557,7 +217,16 @@ export class ProductService extends BaseServiceImpl<Product, Prisma.ProductCreat
             }
 
             if (filters.maxPrice) {
-                where.price = { ...(where.price || {}), lte: Number(filters.maxPrice) };
+                if (filters.minPrice) {
+                    // Both min and max price filters exist
+                    where.price = {
+                        gte: Number(filters.minPrice),
+                        lte: Number(filters.maxPrice),
+                    };
+                } else {
+                    // Only max price filter exists
+                    where.price = { lte: Number(filters.maxPrice) };
+                }
             }
 
             // Count total matching products for pagination
@@ -588,6 +257,7 @@ export class ProductService extends BaseServiceImpl<Product, Prisma.ProductCreat
                 totalPages: Math.ceil(total / limit),
             };
         } catch (error) {
+            console.error("Error retrieving products:", error);
             throw new ApiError(500, "Error retrieving products");
         }
     }
@@ -613,7 +283,7 @@ export class ProductService extends BaseServiceImpl<Product, Prisma.ProductCreat
             const categoryIds = [categoryId, ...subcategories.map((sc) => sc.id)];
 
             // Build where clause
-            const where: any = {
+            const where: Prisma.ProductWhereInput = {
                 deletedAt: null,
                 categoryId: { in: categoryIds },
             };
@@ -667,6 +337,7 @@ export class ProductService extends BaseServiceImpl<Product, Prisma.ProductCreat
 
             return product;
         } catch (error) {
+            console.error("Error finding product by SKU:", error);
             throw new ApiError(500, "Error finding product by SKU");
         }
     }
@@ -746,7 +417,7 @@ export class ProductService extends BaseServiceImpl<Product, Prisma.ProductCreat
         }
     }
 
-    async getProductWithInventory(productId: number) {
+    async getProductWithInventory(productId: number): Promise<Product & { inventory: Inventory[] }> {
         try {
             const product = await prisma.product.findUnique({
                 where: { id: productId },
@@ -765,9 +436,13 @@ export class ProductService extends BaseServiceImpl<Product, Prisma.ProductCreat
                 throw new ApiError(404, "Product not found");
             }
 
-            return product;
+            // Map inventoryItems to inventory for interface compliance
+            return {
+                ...product,
+                inventory: product.inventoryItems,
+            };
         } catch (error) {
-            if (error instanceof ApiError) throw error;
+            console.error("Error retrieving product with inventory:", error);
             throw new ApiError(500, "Error retrieving product with inventory");
         }
     }
@@ -797,7 +472,7 @@ export class ProductService extends BaseServiceImpl<Product, Prisma.ProductCreat
         }
     }
 
-    async addProductComponent(productId: number, componentData: AddProductComponentInput) {
+    async addProductComponent(productId: number, componentId: number, quantity: number, unit?: string): Promise<ProductComponent> {
         try {
             // Check if product exists
             const product = await prisma.product.findUnique({
@@ -810,7 +485,7 @@ export class ProductService extends BaseServiceImpl<Product, Prisma.ProductCreat
 
             // Check if component exists
             const component = await prisma.product.findUnique({
-                where: { id: componentData.componentId },
+                where: { id: componentId },
             });
 
             if (!component) {
@@ -818,7 +493,7 @@ export class ProductService extends BaseServiceImpl<Product, Prisma.ProductCreat
             }
 
             // Check for circular dependency
-            if (productId === componentData.componentId) {
+            if (productId === componentId) {
                 throw new ApiError(400, "Product cannot be a component of itself");
             }
 
@@ -827,7 +502,7 @@ export class ProductService extends BaseServiceImpl<Product, Prisma.ProductCreat
                 where: {
                     unique_product_component: {
                         productId,
-                        componentId: componentData.componentId,
+                        componentId,
                     },
                 },
             });
@@ -840,17 +515,15 @@ export class ProductService extends BaseServiceImpl<Product, Prisma.ProductCreat
             const productComponent = await prisma.productComponent.create({
                 data: {
                     productId,
-                    componentId: componentData.componentId,
-                    quantity: componentData.quantity,
-                    unit: componentData.unit,
-                },
-                include: {
-                    component: true,
+                    componentId,
+                    quantity,
+                    unit,
                 },
             });
 
             return productComponent;
         } catch (error) {
+            console.error("Error adding product component:", error);
             if (error instanceof ApiError) throw error;
             throw new ApiError(500, "Error adding product component");
         }
@@ -898,7 +571,7 @@ export class ProductService extends BaseServiceImpl<Product, Prisma.ProductCreat
         }
     }
 
-    async updateProductImage(productId: number, imageUrl: string, isDefault: boolean = false) {
+    async updateProductImage(productId: number, imageUrl: string, isDefault = false): Promise<Product> {
         try {
             // Check if product exists
             const product = await prisma.product.findUnique({
@@ -939,8 +612,13 @@ export class ProductService extends BaseServiceImpl<Product, Prisma.ProductCreat
                 },
             });
 
+            if (!updatedProduct) {
+                throw new ApiError(404, "Product not found after updating image");
+            }
+
             return updatedProduct;
         } catch (error) {
+            console.error("Error updating product image:", error);
             if (error instanceof ApiError) throw error;
             throw new ApiError(500, "Error updating product image");
         }
