@@ -1,701 +1,283 @@
+import { Prisma } from "@prisma/client";
 import {
     User,
     Role,
-    UserSession,
-    ProductionOrder,
-    ProductionOrderStatus,
-    Product,
-    AuditLog,
-    IntegrationLog,
-    IntegrationStatus,
-    IntegrationDirection,
-    ApiKey,
-    PermissionType,
-    ApiKeyPermission,
-    ReportData,
-    ReportType,
-    ReportParameter,
-    AlertRecipientUser,
-    NotificationChannel,
-    AlertNotificationChannel,
-    AlertSetting,
-    AlertType,
-    PurchaseOrder,
-    PurchaseOrderItem,
-    PurchaseOrderStatus,
-    Supplier,
-    OrderItem,
-    Order,
-    Customer,
-    OrderStatus,
-    Inventory,
-    LocationType,
-    InventoryTransaction,
-    InventoryTransactionType,
-    Category,
-    ProductComponent,
-    ProductImage,
-    RoleName,
     Permission,
-    Report,
+    Category,
+    Product,
+    Supplier,
     Location,
+    Inventory,
+    Customer,
+    Order,
+    PurchaseOrder,
+    InventoryTransaction,
+    AlertSetting,
+    Report,
+    ApiKey,
+    IntegrationLog,
+    AuditLog,
+    ProductComponent,
+    ProductionOrder,
+    OrderItem,
+    PurchaseOrderItem,
     Notification,
 } from "@prisma/client";
 
-export interface CreateUserDTO {
-    email: string;
-    password: string;
-    firstName: string;
-    lastName: string;
-    roleId: number;
+// Common interface for pagination
+export interface PaginationParams {
+    page?: number;
+    limit?: number;
+    sortBy?: string;
+    sortOrder?: "asc" | "desc";
 }
 
-export interface UpdateUserDTO {
-    email?: string;
-    firstName?: string;
-    lastName?: string;
-    roleId?: number;
-    password?: string;
+// Common interface for search filters
+export interface SearchFilter {
+    searchTerm?: string;
+    filters?: Record<string, unknown>;
 }
 
-export interface UserLoginDTO {
-    email: string;
-    password: string;
-    ipAddress?: string;
-    userAgent?: string;
+// Base service interface with common CRUD operations
+export interface BaseService<T, TCreateInput, TUpdateInput> {
+    findAll(params?: PaginationParams & SearchFilter): Promise<{ data: T[]; total: number; page: number; limit: number }>;
+    findById(id: number): Promise<T | null>;
+    create(data: TCreateInput): Promise<T>;
+    update(id: number, data: TUpdateInput): Promise<T>;
+    delete(id: number): Promise<T>;
 }
 
-export interface UserLoginResponse {
-    user: User;
-    token: string;
-    refreshToken: string;
+// Category hierarchy type
+export interface CategoryHierarchyItem extends Category {
+    subcategories: CategoryHierarchyItem[];
 }
 
-export interface LoginResponse {
-    token: string;
-    refreshToken: string;
-    user: User;
-}
-
-export interface RefreshTokenResponse {
-    token: string;
-    refreshToken: string;
-}
-
-export interface IUserService {
-    create(data: CreateUserDTO): Promise<User>;
-    findById(id: number): Promise<User | null>;
+// User service interface
+export interface IUserService extends BaseService<User, Prisma.UserCreateInput, Prisma.UserUpdateInput> {
     findByEmail(email: string): Promise<User | null>;
-    update(id: number, data: UpdateUserDTO): Promise<User>;
-    delete(id: number): Promise<User>;
-    login(credentials: UserLoginDTO): Promise<UserLoginResponse>;
-    refreshToken(token: string): Promise<UserLoginResponse>;
-    logout(userId: number): Promise<boolean>;
-    changePassword(userId: number, oldPassword: string, newPassword: string): Promise<boolean>;
-    getUserWithRole(userId: number): Promise<(User & { role: Role }) | null>;
-    getSessions(userId: number): Promise<UserSession[]>;
-    terminateSession(sessionId: number): Promise<boolean>;
+    updatePassword(id: number, currentPassword: string, newPassword: string): Promise<boolean>;
+    validateCredentials(email: string, password: string): Promise<User | null>;
+    createSession(userId: number, ipAddress?: string, userAgent?: string): Promise<{ user: User; token: string; refreshToken: string }>;
+    refreshToken(refreshToken: string): Promise<{ token: string; refreshToken: string } | null>;
+    logout(token: string): Promise<boolean>;
+    isTokenValid(token: string): Promise<boolean>;
 }
 
-export interface CreateRoleDTO {
-    name: RoleName;
-    description?: string;
-    permissionIds?: number[];
+// Role service interface
+export interface IRoleService extends BaseService<Role, Prisma.RoleCreateInput, Prisma.RoleUpdateInput> {
+    findByName(name: string): Promise<Role | null>;
+    assignPermissions(roleId: number, permissionIds: number[]): Promise<Role>;
+    removePermissions(roleId: number, permissionIds: number[]): Promise<Role>;
+    getUserRoles(userId: number): Promise<Role[]>;
 }
 
-export interface UpdateRoleDTO {
-    description?: string;
-    permissionIds?: number[];
-}
-
-export interface IRoleService {
-    create(data: CreateRoleDTO): Promise<Role>;
-    findById(id: number): Promise<Role | null>;
-    findByName(name: RoleName): Promise<Role | null>;
-    findAll(): Promise<Role[]>;
-    update(id: number, data: UpdateRoleDTO): Promise<Role>;
-    delete(id: number): Promise<Role>;
-    addPermission(roleId: number, permissionId: number): Promise<Role>;
-    removePermission(roleId: number, permissionId: number): Promise<Role>;
-    getRoleWithPermissions(roleId: number): Promise<(Role & { permissions: Permission[] }) | null>;
-}
-
-export interface CreatePermissionDTO {
-    name: string;
-    description?: string;
-}
-
-export interface IPermissionService {
-    create(data: CreatePermissionDTO): Promise<Permission>;
-    findById(id: number): Promise<Permission | null>;
+// Permission service interface
+export interface IPermissionService extends BaseService<Permission, Prisma.PermissionCreateInput, Prisma.PermissionUpdateInput> {
     findByName(name: string): Promise<Permission | null>;
-    findAll(): Promise<Permission[]>;
-    update(id: number, data: Partial<CreatePermissionDTO>): Promise<Permission>;
-    delete(id: number): Promise<Permission>;
+    getRolePermissions(roleId: number): Promise<Permission[]>;
 }
 
-export interface CreateProductDTO {
-    sku: string;
-    name: string;
-    description?: string;
-    categoryId: number;
-    price: number;
-    cost: number;
-    taxRate?: number;
-    barcode?: string;
-    weight?: number;
-    length?: number;
-    width?: number;
-    height?: number;
-    reorderPoint?: number;
-    reorderQuantity?: number;
-    images?: {
-        url: string;
-        isDefault?: boolean;
-        sortOrder?: number;
-    }[];
-    components?: {
-        componentId: number;
-        quantity: number;
-        unit?: string;
-    }[];
-}
-
-export interface UpdateProductDTO {
-    name?: string;
-    description?: string;
-    categoryId?: number;
-    price?: number;
-    cost?: number;
-    taxRate?: number;
-    barcode?: string;
-    weight?: number;
-    length?: number;
-    width?: number;
-    height?: number;
-    reorderPoint?: number;
-    reorderQuantity?: number;
-}
-
-export interface ProductWithRelations extends Product {
-    category?: Category;
-    images?: ProductImage[];
-    components?: (ProductComponent & { component: Product })[];
-}
-
-export interface IProductService {
-    create(data: CreateProductDTO): Promise<Product>;
-    findById(id: number): Promise<Product | null>;
-    findBySku(sku: string): Promise<Product | null>;
-    findByBarcode(barcode: string): Promise<Product | null>;
-    findAll(page?: number, limit?: number): Promise<Product[]>;
-    findByCategory(categoryId: number): Promise<Product[]>;
-    update(id: number, data: UpdateProductDTO): Promise<Product>;
-    delete(id: number): Promise<Product>;
-    getFullProductDetails(id: number): Promise<ProductWithRelations | null>;
-    addProductImage(productId: number, imageUrl: string, isDefault?: boolean): Promise<ProductImage>;
-    removeProductImage(imageId: number): Promise<boolean>;
-    setDefaultImage(imageId: number): Promise<ProductImage>;
-    addComponent(productId: number, componentId: number, quantity: number, unit?: string): Promise<ProductComponent>;
-    removeComponent(productId: number, componentId: number): Promise<boolean>;
-    updateComponent(productId: number, componentId: number, quantity: number, unit?: string): Promise<ProductComponent>;
-    getProductStock(productId: number): Promise<{ locationId: number; locationName: string; quantity: number }[]>;
-}
-
-export interface CreateCategoryDTO {
-    name: string;
-    description?: string;
-    parentId?: number;
-}
-
-export interface UpdateCategoryDTO {
-    name?: string;
-    description?: string;
-    parentId?: number;
-}
-
-export interface CategoryWithChildren extends Category {
-    subcategories?: CategoryWithChildren[];
-}
-
-export interface ICategoryService {
-    create(data: CreateCategoryDTO): Promise<Category>;
-    findById(id: number): Promise<Category | null>;
+// Category service interface
+export interface ICategoryService extends BaseService<Category, Prisma.CategoryCreateInput, Prisma.CategoryUpdateInput> {
     findByName(name: string): Promise<Category | null>;
-    findAll(): Promise<Category[]>;
-    findRootCategories(): Promise<Category[]>;
-    findSubcategories(parentId: number): Promise<Category[]>;
-    update(id: number, data: UpdateCategoryDTO): Promise<Category>;
-    delete(id: number): Promise<Category>;
-    getCategoryTree(): Promise<CategoryWithChildren[]>;
+    findSubcategories(categoryId: number): Promise<Category[]>;
+    findWithProducts(categoryId: number): Promise<Category & { products: Product[] }>;
+    getHierarchy(): Promise<CategoryHierarchyItem[]>; // Returns hierarchical category structure
 }
 
-export interface CreateSupplierDTO {
-    name: string;
-    contactName?: string;
-    email?: string;
-    phone?: string;
-    address?: string;
-    notes?: string;
+// Product service interface
+export interface IProductService extends BaseService<Product, Prisma.ProductCreateInput, Prisma.ProductUpdateInput> {
+    findBySku(sku: string): Promise<Product | null>;
+    findByCategory(
+        categoryId: number,
+        params?: PaginationParams & SearchFilter,
+    ): Promise<{ data: Product[]; total: number; page: number; limit: number }>;
+    updateStock(productId: number, locationId: number, quantity: number): Promise<Inventory>;
+    getProductWithInventory(productId: number): Promise<Product & { inventory: Inventory[] }>;
+    getProductComponents(productId: number): Promise<ProductComponent[]>;
+    addProductComponent(productId: number, componentId: number, quantity: number, unit?: string): Promise<ProductComponent>;
+    removeProductComponent(productId: number, componentId: number): Promise<boolean>;
+    updateProductImage(productId: number, imageUrl: string, isDefault?: boolean): Promise<Product>;
 }
 
-export interface UpdateSupplierDTO {
-    name?: string;
-    contactName?: string;
-    email?: string;
-    phone?: string;
-    address?: string;
-    notes?: string;
+// Supplier service interface
+export interface ISupplierService extends BaseService<Supplier, Prisma.SupplierCreateInput, Prisma.SupplierUpdateInput> {
+    findByName(name: string): Promise<Supplier[]>;
+    getSupplierWithPurchaseOrders(supplierId: number): Promise<Supplier & { purchaseOrders: PurchaseOrder[] }>;
 }
 
-export interface ISupplierService {
-    create(data: CreateSupplierDTO): Promise<Supplier>;
-    findById(id: number): Promise<Supplier | null>;
-    findAll(page?: number, limit?: number): Promise<Supplier[]>;
-    update(id: number, data: UpdateSupplierDTO): Promise<Supplier>;
-    delete(id: number): Promise<Supplier>;
-    getPurchaseOrders(supplierId: number): Promise<PurchaseOrder[]>;
-}
-
-export interface CreateInventoryDTO {
-    productId: number;
-    locationId: number;
-    quantity: number;
-    reservedQuantity?: number;
-    batchNumber?: string;
-}
-
-export interface UpdateInventoryDTO {
-    quantity?: number;
-    reservedQuantity?: number;
-    batchNumber?: string;
-}
-
-export interface CreateInventoryTransactionDTO {
-    transactionType: InventoryTransactionType;
-    productId: number;
-    quantity: number;
-    fromLocationId?: number;
-    toLocationId?: number;
-    referenceId?: string;
-    referenceType?: string;
-    userId: number;
-    notes?: string;
-}
-
-export interface InventoryWithDetails extends Inventory {
-    product: Product;
-    location: Location;
-}
-
-export interface IInventoryService {
-    create(data: CreateInventoryDTO): Promise<Inventory>;
-    findById(id: number): Promise<Inventory | null>;
-    findByProductAndLocation(productId: number, locationId: number): Promise<Inventory | null>;
-    findAll(page?: number, limit?: number): Promise<Inventory[]>;
-    findByLocation(locationId: number): Promise<Inventory[]>;
-    findByProduct(productId: number): Promise<Inventory[]>;
-    update(id: number, data: UpdateInventoryDTO): Promise<Inventory>;
-    incrementQuantity(productId: number, locationId: number, quantity: number): Promise<Inventory>;
-    decrementQuantity(productId: number, locationId: number, quantity: number): Promise<Inventory>;
-    reserveStock(productId: number, locationId: number, quantity: number): Promise<Inventory>;
-    releaseReservedStock(productId: number, locationId: number, quantity: number): Promise<Inventory>;
-    transferStock(productId: number, fromLocationId: number, toLocationId: number, quantity: number, userId: number): Promise<InventoryTransaction>;
-    createTransaction(data: CreateInventoryTransactionDTO): Promise<InventoryTransaction>;
-    getTransactions(
-        productId?: number,
-        locationId?: number,
-        startDate?: Date,
-        endDate?: Date,
-        page?: number,
-        limit?: number,
-    ): Promise<InventoryTransaction[]>;
-    getLowStockProducts(
-        thresholdPercentage?: number,
-    ): Promise<{ productId: number; productName: string; sku: string; currentStock: number; reorderPoint: number }[]>;
-}
-
-export interface CreateLocationDTO {
-    name: string;
-    type: LocationType;
-    address?: string;
-    contactInfo?: string;
-    capacity?: number;
-}
-
-export interface UpdateLocationDTO {
-    name?: string;
-    type?: LocationType;
-    address?: string;
-    contactInfo?: string;
-    capacity?: number;
-}
-
-export interface LocationWithInventory extends Location {
-    inventoryItems: (Inventory & { product: Product })[];
-}
-
-export interface ILocationService {
-    create(data: CreateLocationDTO): Promise<Location>;
-    findById(id: number): Promise<Location | null>;
+// Location service interface
+export interface ILocationService extends BaseService<Location, Prisma.LocationCreateInput, Prisma.LocationUpdateInput> {
     findByName(name: string): Promise<Location | null>;
-    findAll(): Promise<Location[]>;
-    findByType(type: LocationType): Promise<Location[]>;
-    update(id: number, data: UpdateLocationDTO): Promise<Location>;
-    delete(id: number): Promise<Location>;
-    getInventory(locationId: number): Promise<(Inventory & { product: Product })[]>;
-    getLocationCapacityUtilization(locationId: number): Promise<{ capacity: number; used: number; available: number; utilizationPercentage: number }>;
+    findByType(type: string): Promise<Location[]>;
+    getLocationWithInventory(locationId: number): Promise<Location & { inventoryItems: Inventory[] }>;
 }
 
-export interface CreateCustomerDTO {
-    name: string;
-    email?: string;
-    phone?: string;
-    address?: string;
-    notes?: string;
+// Inventory service interface
+export interface IInventoryService extends BaseService<Inventory, Prisma.InventoryCreateInput, Prisma.InventoryUpdateInput> {
+    findByProductAndLocation(productId: number, locationId: number): Promise<Inventory | null>;
+    adjustQuantity(productId: number, locationId: number, quantity: number, reason: string): Promise<InventoryTransaction>;
+    transferInventory(productId: number, fromLocationId: number, toLocationId: number, quantity: number): Promise<InventoryTransaction>;
+    checkLowStock(): Promise<Inventory[]>;
+    reserveStock(productId: number, locationId: number, quantity: number, referenceId: string, referenceType: string): Promise<boolean>;
+    unreserveStock(productId: number, locationId: number, quantity: number, referenceId: string, referenceType: string): Promise<boolean>;
 }
 
-export interface UpdateCustomerDTO {
-    name?: string;
-    email?: string;
-    phone?: string;
-    address?: string;
-    notes?: string;
+// Customer service interface
+export interface ICustomerService extends BaseService<Customer, Prisma.CustomerCreateInput, Prisma.CustomerUpdateInput> {
+    findByEmail(email: string): Promise<Customer | null>;
+    findByPhone(phone: string): Promise<Customer | null>;
+    getCustomerWithOrders(customerId: number): Promise<Customer & { orders: Order[] }>;
 }
 
-export interface ICustomerService {
-    create(data: CreateCustomerDTO): Promise<Customer>;
-    findById(id: number): Promise<Customer | null>;
-    findAll(page?: number, limit?: number): Promise<Customer[]>;
-    update(id: number, data: UpdateCustomerDTO): Promise<Customer>;
-    delete(id: number): Promise<Customer>;
-    getOrders(customerId: number): Promise<Order[]>;
-    getCustomerStats(customerId: number): Promise<{ totalOrders: number; totalSpent: number; lastOrderDate: Date | null }>;
-}
-
-export interface CreateOrderItemDTO {
-    productId: number;
-    quantity: number;
-}
-
-export interface CreateOrderDTO {
-    customerId: number;
-    userId: number;
-    orderItems: CreateOrderItemDTO[];
-    shippingAddress?: string;
-    shippingMethod?: string;
-    paymentMethod?: string;
-    notes?: string;
-}
-
-export interface UpdateOrderDTO {
-    status?: OrderStatus;
-    shippingAddress?: string;
-    shippingMethod?: string;
-    paymentMethod?: string;
-    notes?: string;
-}
-
-export interface OrderWithDetails extends Order {
-    customer: Customer;
-    user: User;
-    orderItems: (OrderItem & { product: Product })[];
-}
-
-export interface IOrderService {
-    create(data: CreateOrderDTO): Promise<Order>;
-    findById(id: number): Promise<Order | null>;
+// Order service interface
+export interface IOrderService extends BaseService<Order, Prisma.OrderCreateInput, Prisma.OrderUpdateInput> {
     findByOrderNumber(orderNumber: string): Promise<Order | null>;
-    findAll(page?: number, limit?: number): Promise<Order[]>;
-    findByStatus(status: OrderStatus): Promise<Order[]>;
     findByCustomer(customerId: number): Promise<Order[]>;
-    update(id: number, data: UpdateOrderDTO): Promise<Order>;
-    updateStatus(id: number, status: OrderStatus): Promise<Order>;
-    delete(id: number): Promise<Order>;
-    getOrderWithDetails(id: number): Promise<OrderWithDetails | null>;
-    addOrderItem(orderId: number, productId: number, quantity: number): Promise<OrderItem>;
-    removeOrderItem(orderItemId: number): Promise<boolean>;
-    updateOrderItem(orderItemId: number, quantity: number): Promise<OrderItem>;
-    calculateOrderTotals(orderId: number): Promise<{ subtotal: number; tax: number; shippingCost: number; total: number }>;
+    findByStatus(status: string): Promise<Order[]>;
+    findByDateRange(startDate: Date, endDate: Date): Promise<Order[]>;
+    createOrderWithItems(data: Prisma.OrderCreateInput, items: Prisma.OrderItemCreateInput[]): Promise<Order & { orderItems: OrderItem[] }>;
+    updateStatus(orderId: number, status: string): Promise<Order>;
+    calculateOrderTotals(items: { productId: number; quantity: number }[]): Promise<{ subtotal: number; tax: number; total: number }>;
+    processPayment(orderId: number, paymentMethod: string, amount: number): Promise<boolean>;
+    generateInvoice(orderId: number): Promise<string>; // Returns invoice URL or path
 }
 
-export interface CreatePurchaseOrderItemDTO {
-    productId: number;
-    quantityOrdered: number;
-    unitCost: number;
-}
-
-export interface CreatePurchaseOrderDTO {
-    supplierId: number;
-    userId: number;
-    expectedDeliveryDate?: Date;
-    status?: PurchaseOrderStatus;
-    notes?: string;
-    purchaseOrderItems: CreatePurchaseOrderItemDTO[];
-}
-
-export interface UpdatePurchaseOrderDTO {
-    expectedDeliveryDate?: Date;
-    status?: PurchaseOrderStatus;
-    notes?: string;
-}
-
-export interface PurchaseOrderWithDetails extends PurchaseOrder {
-    supplier: Supplier;
-    user: User;
-    purchaseOrderItems: (PurchaseOrderItem & { product: Product })[];
-}
-
-export interface IPurchaseOrderService {
-    create(data: CreatePurchaseOrderDTO): Promise<PurchaseOrder>;
-    findById(id: number): Promise<PurchaseOrder | null>;
-    findByPoNumber(poNumber: string): Promise<PurchaseOrder | null>;
-    findAll(page?: number, limit?: number): Promise<PurchaseOrder[]>;
-    findByStatus(status: PurchaseOrderStatus): Promise<PurchaseOrder[]>;
+// Purchase Order service interface
+export interface IPurchaseOrderService extends BaseService<PurchaseOrder, Prisma.PurchaseOrderCreateInput, Prisma.PurchaseOrderUpdateInput> {
+    findByPONumber(poNumber: string): Promise<PurchaseOrder | null>;
     findBySupplier(supplierId: number): Promise<PurchaseOrder[]>;
-    update(id: number, data: UpdatePurchaseOrderDTO): Promise<PurchaseOrder>;
-    updateStatus(id: number, status: PurchaseOrderStatus): Promise<PurchaseOrder>;
-    delete(id: number): Promise<PurchaseOrder>;
-    getPurchaseOrderWithDetails(id: number): Promise<PurchaseOrderWithDetails | null>;
-    addPurchaseOrderItem(purchaseOrderId: number, productId: number, quantityOrdered: number, unitCost: number): Promise<PurchaseOrderItem>;
-    removePurchaseOrderItem(purchaseOrderItemId: number): Promise<boolean>;
-    updatePurchaseOrderItem(purchaseOrderItemId: number, quantityOrdered: number, unitCost: number): Promise<PurchaseOrderItem>;
-    receiveItems(purchaseOrderId: number, items: { id: number; quantityReceived: number }[]): Promise<PurchaseOrder>;
-    calculateTotal(purchaseOrderId: number): Promise<number>;
+    findByStatus(status: string): Promise<PurchaseOrder[]>;
+    createPurchaseOrderWithItems(
+        data: Prisma.PurchaseOrderCreateInput,
+        items: Prisma.PurchaseOrderItemCreateInput[],
+    ): Promise<PurchaseOrder & { purchaseOrderItems: PurchaseOrderItem[] }>;
+    updateStatus(poId: number, status: string): Promise<PurchaseOrder>;
+    receiveItems(poId: number, receivedItems: { itemId: number; quantityReceived: number }[]): Promise<PurchaseOrderItem[]>;
+    generatePDF(poId: number): Promise<string>; // Returns PO PDF URL or path
 }
 
-export interface CreateAlertSettingDTO {
-    productId?: number;
-    categoryId?: number;
-    locationId?: number;
-    alertType: AlertType;
-    threshold?: number;
-    isActive?: boolean;
-    notificationChannels: NotificationChannel[];
-    recipientUserIds: number[];
+// Inventory Transaction service interface
+export interface IInventoryTransactionService
+    extends BaseService<InventoryTransaction, Prisma.InventoryTransactionCreateInput, Prisma.InventoryTransactionUpdateInput> {
+    findByProduct(productId: number): Promise<InventoryTransaction[]>;
+    findByLocation(locationId: number): Promise<InventoryTransaction[]>;
+    findByType(type: string): Promise<InventoryTransaction[]>;
+    findByDateRange(startDate: Date, endDate: Date): Promise<InventoryTransaction[]>;
+    findByReference(referenceId: string, referenceType: string): Promise<InventoryTransaction[]>;
 }
 
-export interface UpdateAlertSettingDTO {
-    threshold?: number;
-    isActive?: boolean;
-    notificationChannels?: NotificationChannel[];
-    recipientUserIds?: number[];
-}
+// Report data interface
+export type ReportData = Record<string, string | number | boolean | Date | Record<string, unknown>>;
 
-export interface AlertSettingWithDetails extends AlertSetting {
-    notificationChannels: AlertNotificationChannel[];
-    recipientUsers: AlertRecipientUser[];
-    notifications: Notification[];
-}
-
-export interface IAlertService {
-    create(data: CreateAlertSettingDTO): Promise<AlertSetting>;
-    findById(id: number): Promise<AlertSetting | null>;
-    findAll(): Promise<AlertSetting[]>;
-    findByType(type: AlertType): Promise<AlertSetting[]>;
+// Alert Setting service interface
+export interface IAlertSettingService extends BaseService<AlertSetting, Prisma.AlertSettingCreateInput, Prisma.AlertSettingUpdateInput> {
     findByProduct(productId: number): Promise<AlertSetting[]>;
     findByCategory(categoryId: number): Promise<AlertSetting[]>;
     findByLocation(locationId: number): Promise<AlertSetting[]>;
-    update(id: number, data: UpdateAlertSettingDTO): Promise<AlertSetting>;
-    delete(id: number): Promise<AlertSetting>;
-    toggleActive(id: number): Promise<AlertSetting>;
-    getAlertWithDetails(id: number): Promise<AlertSettingWithDetails | null>;
-    checkLowStockAlerts(): Promise<Notification[]>;
-    checkExpiringAlerts(): Promise<Notification[]>;
-    checkOverstockAlerts(): Promise<Notification[]>;
-    addNotificationChannel(alertId: number, channel: NotificationChannel): Promise<AlertNotificationChannel>;
-    removeNotificationChannel(alertId: number, channel: NotificationChannel): Promise<boolean>;
-    addRecipientUser(alertId: number, userId: number): Promise<AlertRecipientUser>;
-    removeRecipientUser(alertId: number, userId: number): Promise<boolean>;
+    findByType(type: string): Promise<AlertSetting[]>;
+    findActiveAlerts(): Promise<AlertSetting[]>;
+    toggleAlertStatus(alertId: number): Promise<AlertSetting>;
+    checkAndTriggerAlerts(): Promise<Notification[]>;
+    addRecipientUsers(alertId: number, userIds: number[]): Promise<AlertSetting>;
+    removeRecipientUsers(alertId: number, userIds: number[]): Promise<AlertSetting>;
 }
 
-export interface CreateNotificationDTO {
-    type: string;
-    title: string;
-    content: string;
-    recipientUserId: number;
-    alertId?: number;
-    referenceId?: string;
-    referenceType?: string;
+// Notification service interface
+export interface INotificationService extends BaseService<Notification, Prisma.NotificationCreateInput, Prisma.NotificationUpdateInput> {
+    findByUser(userId: number): Promise<Notification[]>;
+    findUnreadByUser(userId: number): Promise<Notification[]>;
+    markAsRead(notificationId: number): Promise<Notification>;
+    markAllAsRead(userId: number): Promise<number>; // Returns count of notifications marked as read
+    sendNotification(
+        userId: number,
+        title: string,
+        content: string,
+        type: string,
+        referenceId?: string,
+        referenceType?: string,
+    ): Promise<Notification>;
+    sendBulkNotifications(
+        userIds: number[],
+        title: string,
+        content: string,
+        type: string,
+        referenceId?: string,
+        referenceType?: string,
+    ): Promise<Notification[]>;
 }
 
-export interface INotificationService {
-    create(data: CreateNotificationDTO): Promise<Notification>;
-    findById(id: number): Promise<Notification | null>;
-    findByUser(userId: number, includeRead?: boolean): Promise<Notification[]>;
-    markAsRead(id: number): Promise<Notification>;
-    markAllAsRead(userId: number): Promise<number>;
-    delete(id: number): Promise<Notification>;
-    deleteAllRead(userId: number): Promise<number>;
-    countUnread(userId: number): Promise<number>;
-    sendEmail(notificationId: number): Promise<boolean>;
-    sendSms(notificationId: number): Promise<boolean>;
-}
-
-export interface CreateReportDTO {
-    name: string;
-    description?: string;
-    reportType: ReportType;
-    createdBy: number;
-    isScheduled?: boolean;
-    scheduleFrequency?: string;
-    parameters: Record<string, string>;
-}
-
-export interface UpdateReportDTO {
-    name?: string;
-    description?: string;
-    isScheduled?: boolean;
-    scheduleFrequency?: string;
-    parameters?: Record<string, string>;
-}
-
-export interface ReportWithDetails extends Report {
-    parameters: ReportParameter[];
-    reportData: ReportData[];
-    user: User;
-}
-
-export interface IReportService {
-    create(data: CreateReportDTO): Promise<Report>;
-    findById(id: number): Promise<Report | null>;
-    findAll(): Promise<Report[]>;
-    findByType(type: ReportType): Promise<Report[]>;
+// Report service interface
+export interface IReportService extends BaseService<Report, Prisma.ReportCreateInput, Prisma.ReportUpdateInput> {
+    findByType(type: string): Promise<Report[]>;
     findByUser(userId: number): Promise<Report[]>;
-    update(id: number, data: UpdateReportDTO): Promise<Report>;
-    delete(id: number): Promise<Report>;
-    getReportWithDetails(id: number): Promise<ReportWithDetails | null>;
-    generateReport(id: number): Promise<ReportData>;
-    getLatestReportData(id: number): Promise<ReportData | null>;
-    runScheduledReports(): Promise<void>;
-    salesReport(startDate: Date, endDate: Date): Promise<any>;
-    inventoryReport(): Promise<any>;
-    financialReport(startDate: Date, endDate: Date): Promise<any>;
-    productionReport(startDate: Date, endDate: Date): Promise<any>;
+    generateReport(reportId: number): Promise<ReportData>; // Returns report data
+    runScheduledReports(): Promise<Report[]>;
+    exportReport(reportId: number, format: "pdf" | "csv" | "excel"): Promise<string>; // Returns export URL or path
 }
 
-export interface CreateApiKeyDTO {
+// Missing component interface
+export interface MissingComponent {
+    componentId: number;
     name: string;
-    createdBy: number;
-    expiresAt?: Date;
-    permissions: {
-        resource: string;
-        permissionType: PermissionType;
-    }[];
+    requiredQuantity: number;
+    availableQuantity: number;
+    shortageAmount: number;
 }
 
-export interface ApiKeyWithPermissions extends ApiKey {
-    permissions: ApiKeyPermission[];
-}
-
-export interface IApiKeyService {
-    create(data: CreateApiKeyDTO): Promise<{ apiKey: ApiKey; plainTextKey: string }>;
-    findById(id: number): Promise<ApiKey | null>;
-    findByKey(key: string): Promise<ApiKey | null>;
-    findByUser(userId: number): Promise<ApiKey[]>;
-    findAll(): Promise<ApiKey[]>;
-    update(id: number, name: string): Promise<ApiKey>;
-    delete(id: number): Promise<ApiKey>;
-    validateKey(key: string): Promise<ApiKey | null>;
+// API Key service interface
+export interface IApiKeyService extends BaseService<ApiKey, Prisma.ApiKeyCreateInput, Prisma.ApiKeyUpdateInput> {
+    generateKey(name: string, userId: number, expiresIn?: number): Promise<{ apiKey: string; apiKeyRecord: ApiKey }>;
+    validateKey(apiKey: string): Promise<ApiKey | null>;
     revokeKey(id: number): Promise<ApiKey>;
-    refreshKey(id: number): Promise<{ apiKey: ApiKey; plainTextKey: string }>;
-    getApiKeyWithPermissions(id: number): Promise<ApiKeyWithPermissions | null>;
-    addPermission(apiKeyId: number, resource: string, permissionType: PermissionType): Promise<ApiKeyPermission>;
-    removePermission(apiKeyId: number, resource: string, permissionType: PermissionType): Promise<boolean>;
-    trackUsage(apiKeyId: number): Promise<ApiKey>;
+    updateKeyPermissions(keyId: number, permissions: Prisma.ApiKeyPermissionCreateInput[]): Promise<ApiKey>;
 }
 
-export interface CreateIntegrationLogDTO {
-    integrationType: string;
-    direction: IntegrationDirection;
-    status: IntegrationStatus;
-    requestPayload?: string;
-    responsePayload?: string;
-    errorMessage?: string;
-    apiKeyId?: number;
-}
-
-export interface IIntegrationService {
-    logIntegration(data: CreateIntegrationLogDTO): Promise<IntegrationLog>;
-    findById(id: number): Promise<IntegrationLog | null>;
-    findAll(page?: number, limit?: number): Promise<IntegrationLog[]>;
+// Integration Log service interface
+export interface IIntegrationLogService extends BaseService<IntegrationLog, Prisma.IntegrationLogCreateInput, Prisma.IntegrationLogUpdateInput> {
     findByType(type: string): Promise<IntegrationLog[]>;
-    findByStatus(status: IntegrationStatus): Promise<IntegrationLog[]>;
+    findByStatus(status: string): Promise<IntegrationLog[]>;
     findByApiKey(apiKeyId: number): Promise<IntegrationLog[]>;
-    delete(id: number): Promise<IntegrationLog>;
-    exportToCsv(startDate: Date, endDate: Date): Promise<string>;
-    retryFailedIntegrations(): Promise<number>;
+    findByDateRange(startDate: Date, endDate: Date): Promise<IntegrationLog[]>;
+    logIntegration(data: Prisma.IntegrationLogCreateInput): Promise<IntegrationLog>;
 }
 
-export interface CreateAuditLogDTO {
-    userId?: number;
-    action: string;
-    entityType: string;
-    entityId: string;
-    oldValues?: Record<string, any>;
-    newValues?: Record<string, any>;
-    ipAddress?: string;
-    userAgent?: string;
-}
-
-export interface IAuditService {
-    log(data: CreateAuditLogDTO): Promise<AuditLog>;
-    findById(id: number): Promise<AuditLog | null>;
-    findAll(page?: number, limit?: number): Promise<AuditLog[]>;
+// Audit Log service interface
+export interface IAuditLogService extends BaseService<AuditLog, Prisma.AuditLogCreateInput, Prisma.AuditLogUpdateInput> {
     findByUser(userId: number): Promise<AuditLog[]>;
     findByEntityType(entityType: string): Promise<AuditLog[]>;
-    findByEntityId(entityType: string, entityId: string): Promise<AuditLog[]>;
+    findByEntity(entityType: string, entityId: string): Promise<AuditLog[]>;
     findByAction(action: string): Promise<AuditLog[]>;
     findByDateRange(startDate: Date, endDate: Date): Promise<AuditLog[]>;
-    exportToCsv(startDate: Date, endDate: Date): Promise<string>;
+    logActivity(
+        userId: number | null,
+        action: string,
+        entityType: string,
+        entityId: string,
+        oldValues?: Record<string, unknown>,
+        newValues?: Record<string, unknown>,
+        ipAddress?: string,
+        userAgent?: string,
+    ): Promise<AuditLog>;
 }
 
-export interface CreateProductionOrderDTO {
-    productId: number;
-    quantity: number;
-    status?: ProductionOrderStatus;
-    startDate?: Date;
-    endDate?: Date;
-    createdBy: number;
-    notes?: string;
+// Product Component service interface
+export interface IProductComponentService
+    extends BaseService<ProductComponent, Prisma.ProductComponentCreateInput, Prisma.ProductComponentUpdateInput> {
+    findByProduct(productId: number): Promise<ProductComponent[]>;
+    findByComponent(componentId: number): Promise<ProductComponent[]>;
+    updateQuantity(productId: number, componentId: number, quantity: number): Promise<ProductComponent>;
 }
 
-export interface UpdateProductionOrderDTO {
-    quantity?: number;
-    status?: ProductionOrderStatus;
-    startDate?: Date;
-    endDate?: Date;
-    notes?: string;
-}
-
-export interface ProductionOrderWithDetails extends ProductionOrder {
-    product: Product;
-    user: User;
-}
-
-export interface MaterialRequirement {
-    productId: number;
-    productName: string;
-    sku: string;
-    quantityRequired: number;
-    quantityAvailable: number;
-    unit: string;
-    sufficient: boolean;
-}
-
-export interface IProductionService {
-    create(data: CreateProductionOrderDTO): Promise<ProductionOrder>;
-    findById(id: number): Promise<ProductionOrder | null>;
+// Production Order service interface
+export interface IProductionOrderService extends BaseService<ProductionOrder, Prisma.ProductionOrderCreateInput, Prisma.ProductionOrderUpdateInput> {
     findByOrderNumber(orderNumber: string): Promise<ProductionOrder | null>;
-    findAll(page?: number, limit?: number): Promise<ProductionOrder[]>;
-    findByStatus(status: ProductionOrderStatus): Promise<ProductionOrder[]>;
     findByProduct(productId: number): Promise<ProductionOrder[]>;
-    update(id: number, data: UpdateProductionOrderDTO): Promise<ProductionOrder>;
-    updateStatus(id: number, status: ProductionOrderStatus): Promise<ProductionOrder>;
-    delete(id: number): Promise<ProductionOrder>;
-    getProductionOrderWithDetails(id: number): Promise<ProductionOrderWithDetails | null>;
-    checkMaterialRequirements(productId: number, quantity: number): Promise<MaterialRequirement[]>;
-    startProduction(id: number): Promise<ProductionOrder>;
-    completeProduction(id: number): Promise<ProductionOrder>;
-    cancelProduction(id: number): Promise<ProductionOrder>;
+    findByStatus(status: string): Promise<ProductionOrder[]>;
+    findByDateRange(startDate: Date, endDate: Date): Promise<ProductionOrder[]>;
+    updateStatus(orderId: number, status: string): Promise<ProductionOrder>;
+    checkComponentAvailability(productId: number, quantity: number): Promise<{ available: boolean; missingComponents: MissingComponent[] }>;
+    startProduction(orderId: number): Promise<ProductionOrder>;
+    completeProduction(orderId: number): Promise<ProductionOrder>;
+    cancelProduction(orderId: number): Promise<ProductionOrder>;
 }
